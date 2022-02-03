@@ -1,0 +1,22 @@
+List of cases: 
+
+Blame: 
+["bw"],
+["wb","wb"],
+["bb","bw","bw"],
+["wb","wb","bw"],
+["wb","bb","bw"],
+["bb","bb","wb"],
+["bw","bb","bb","bb","bw"],
+["bw","bw","bw","bw"],
+
+Credit: 
+["ww"],
+["wb","bb"],
+["bw","ww","ww"],
+["wb","bw","bb"],
+["wb","wb","bw","bb"],
+["wb","bb","bb","ww"],
+["wb","bw","wb","bw","ww"],
+["wb","wb","wb","wb","ww"],
+

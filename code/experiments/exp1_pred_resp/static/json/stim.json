@@ -1,0 +1,222 @@
+{
+  "stim": [
+    {
+      "ID": 1,
+      "image": "trial_1_diff_1_index_1",
+      "bricks": 7
+    },
+    {
+      "ID": 2,
+      "image": "trial_2_diff_1_index_2",
+      "bricks": 7
+    },
+    {
+      "ID": 3,
+      "image": "trial_3_diff_1_index_3",
+      "bricks": 8
+    },
+    {
+      "ID": 4,
+      "image": "trial_4_diff_1_index_4",
+      "bricks": 9
+    },
+    {
+      "ID": 5,
+      "image": "trial_5_diff_1_index_5",
+      "bricks": 12
+    },
+    {
+      "ID": 6,
+      "image": "trial_6_diff_1_index_6",
+      "bricks": 12
+    },
+    {
+      "ID": 7,
+      "image": "trial_7_diff_2_index_1",
+      "bricks": 6
+    },
+    {
+      "ID": 8,
+      "image": "trial_8_diff_2_index_2",
+      "bricks": 7
+    },
+    {
+      "ID": 9,
+      "image": "trial_9_diff_2_index_3",
+      "bricks": 9
+    },
+    {
+      "ID": 10,
+      "image": "trial_10_diff_2_index_4",
+      "bricks": 11
+    },
+    {
+      "ID": 11,
+      "image": "trial_11_diff_2_index_5",
+      "bricks": 11
+    },
+    {
+      "ID": 12,
+      "image": "trial_12_diff_2_index_6",
+      "bricks": 11
+    },
+    {
+      "ID": 13,
+      "image": "trial_13_diff_3_index_1",
+      "bricks": 11
+    },
+    {
+      "ID": 14,
+      "image": "trial_14_diff_3_index_2",
+      "bricks": 12
+    },
+    {
+      "ID": 15,
+      "image": "trial_15_diff_3_index_3",
+      "bricks": 12
+    },
+    {
+      "ID": 16,
+      "image": "trial_16_diff_3_index_4",
+      "bricks": 14
+    },
+    {
+      "ID": 17,
+      "image": "trial_17_diff_3_index_5",
+      "bricks": 15
+    },
+    {
+      "ID": 18,
+      "image": "trial_18_diff_3_index_6",
+      "bricks": 18
+    },
+    {
+      "ID": 19,
+      "image": "trial_19_diff_4_index_1",
+      "bricks": 8
+    },
+    {
+      "ID": 20,
+      "image": "trial_20_diff_4_index_2",
+      "bricks": 14
+    },
+    {
+      "ID": 21,
+      "image": "trial_21_diff_4_index_3",
+      "bricks": 15
+    },
+    {
+      "ID": 22,
+      "image": "trial_22_diff_4_index_4",
+      "bricks": 16
+    },
+    {
+      "ID": 23,
+      "image": "trial_23_diff_4_index_5",
+      "bricks": 18
+    },
+    {
+      "ID": 24,
+      "image": "trial_24_diff_4_index_6",
+      "bricks": 19
+    },
+    {
+      "ID": 25,
+      "image": "trial_25_diff_5_index_1",
+      "bricks": 8
+    },
+    {
+      "ID": 26,
+      "image": "trial_26_diff_5_index_2",
+      "bricks": 13
+    },
+    {
+      "ID": 27,
+      "image": "trial_27_diff_5_index_3",
+      "bricks": 13
+    },
+    {
+      "ID": 28,
+      "image": "trial_28_diff_5_index_4",
+      "bricks": 14
+    },
+    {
+      "ID": 29,
+      "image": "trial_29_diff_5_index_5",
+      "bricks": 14
+    },
+    {
+      "ID": 30,
+      "image": "trial_30_diff_5_index_6",
+      "bricks": 16
+    },
+    {
+      "ID": 31,
+      "image": "trial_31_diff_6_index_1",
+      "bricks": 13
+    },
+    {
+      "ID": 32,
+      "image": "trial_32_diff_6_index_2",
+      "bricks": 13
+    },
+    {
+      "ID": 33,
+      "image": "trial_33_diff_6_index_3",
+      "bricks": 14
+    },
+    {
+      "ID": 34,
+      "image": "trial_34_diff_6_index_4",
+      "bricks": 15
+    },
+    {
+      "ID": 35,
+      "image": "trial_35_diff_6_index_5",
+      "bricks": 17
+    },
+    {
+      "ID": 36,
+      "image": "trial_36_diff_6_index_6",
+      "bricks": 18
+    },
+    {
+      "ID": 37,
+      "image": "trial_37_diff_7_index_1",
+      "bricks": 13
+    },
+    {
+      "ID": 38,
+      "image": "trial_38_diff_7_index_2",
+      "bricks": 13
+    },
+    {
+      "ID": 39,
+      "image": "trial_39_diff_7_index_3",
+      "bricks": 14
+    },
+    {
+      "ID": 40,
+      "image": "trial_40_diff_7_index_4",
+      "bricks": 15
+    },
+    {
+      "ID": 41,
+      "image": "trial_41_diff_7_index_5",
+      "bricks": 15
+    },
+    {
+      "ID": 42,
+      "image": "trial_42_diff_7_index_6",
+      "bricks": 15
+    }
+  ],
+  "questions": [
+    {
+      "q": "How many of the <span style='color:#C74900;font-weight:bold'>red bricks</span> would fall off the table, if the <b>black brick</b> wasn't there?"
+    },
+    {
+      "q": "How responsible is the <b>black brick</b> for the <span style='color:#C74900;font-weight:bold'>red bricks</span> staying on the table?"
+    }
+  ]
+}

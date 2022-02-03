@@ -1,0 +1,41 @@
+<div class="slide" id="instructions-training-1">
+  <h1>Instructions</h1>
+  <div class="blue">
+    <p>In this experiment, you will make judgments about XXX. There will be XXX trials total.</p>
+    <p>On each trial you will read a description of XXX and give use the sliders below to rate your desicion. Answer using your intuitions.</p>    
+  </div>
+
+  <div class="continue">
+    <button type="button" class="next">Continue</button>
+  </div>
+</div>
+
+<div class="slide" id="trial">
+  <div id="progress">
+    <div id="progress-text">Progress</div>
+    <div id="indicator-container">
+      <div id="indicator-outer">
+        <div id="indicator-stage"></div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+  </div>
+  <br />
+  <hr />
+  <div id="stim">
+    <img class="stim_image" src="" />
+    <p class="stim_text"></p>
+    
+  </div>
+
+  <hr /> 
+  <br />
+
+  <div id="choices">
+
+  </div>
+  
+  <div class="continue">
+    <button type="button" id="trial_next" class="next">Continue</button>
+  </div>
+</div>

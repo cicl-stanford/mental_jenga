@@ -1,0 +1,31 @@
+{
+    "stim":[
+        {
+            "ID": 0,
+            "side_agent":"one person",
+            "name": "Hank"
+        },
+
+        {
+            "ID": 1,
+            "side_agent":"his wife",
+            "name": "Ned"
+        },
+
+        {
+            "ID": 2,
+            "side_agent":"his rival at work",
+            "name": "Victor"
+        }
+
+    ],
+    "intend_words": ["flip the switch in order", "intend"],
+    "main_agents": ["five people", "one person", "100 people"],
+    "text": "<p>{{name}} is taking his daily walk over the train tracks when he notices that an approaching train is out of control. {{name}} sees what has happened: the driver of the train saw {{main_agent}} in the path of train and slammed on the brakes, but the brakes failed and the driver fainted. The train is moving so fast that those on the track will not be able to get away in time and will die if nothing is done.</p> <p>{{name}} is standing next to a switch, that will turn the train onto a side track. If the train goes down the side track, the {{main_agent}} on the main track will be saved. However, {{side_agent}} is standing on the side track with her back turned. {{name}} can flip the switch and she will be killed; or he can do nothing, and the {{main_agent}} on the main track will be killed.</p> <p>{{name}} understands the situation and flips the switch. As a result, the {{main_agent}} on the main track live and {{side_agent}} on the side track is hit by the train and dies.</p>",
+    "questions":[
+        {"q": "Did {{name}} {{intent_word}} to kill the {{side_agent}} on the side track?", "l": ["No", "Yes"]},
+        {"q": "Did {{name}} {{intent_word}} to save the {{main_agent}} on the main track?", "l": ["No", "Yes"]},
+        {"q": "Was it morally permissible for {{name}} to flip the switch?", "l": ["No", "Yes"]}
+    ]
+}
+ 

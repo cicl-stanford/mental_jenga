@@ -1,0 +1,123 @@
+<!-- INSTRUCTIONS -->
+<div class="slide" id="instructions-training-0">
+	<h1>Instructions</h1>
+	<div class="blue">
+		<p>In this experiment your task is to judge which of the <span style='color:#C74900;font-weight:bold'>red bricks</span> would fall off the table if the <b>black brick</b> wasn't there (see Figures below).</p>
+		
+		<div class = "instruction-figures">
+			<div class = "instructions-figures2">
+			<img src  = "static/images/stimuli/example_tower.png" style="width:300px; height:225px; background-color: white; border: 2px solid black;">
+			<br>
+			An example of a pile of bricks you may see in the experiment. 
+			</div>
+			<div class = "instructions-figures2">
+			<img src  = "static/images/stimuli/example_tower_selected.png" style="width:300px; height:225px; background-color: white; border: 2px solid black;">			
+			<br>
+			The selected white bricks are the ones that the person thought would fall off the table if the black brick wasn't there. 
+			</div>
+		</div>
+		
+		<br>
+		<br>
+
+		<p>You will first get some experience with the physical properties of the bricks by seeing them fall on the table.</p>
+		<p>You will then see 43 different piles of bricks. For each pile, please select the red bricks that you think would fall off the table if the black brick hadn't been there. Note that <b>each pile is stable</b>. That is, none of the red bricks would fall off the table if the black brick remained where it is.</p>
+		<p>There will be catch trials throughout the experiment, and a check question at the end to make sure that you've paid attention. Your HIT will be rejected if you failed on the catch trials or answered the check question incorrectly.</p>
+		<br>
+		<p style="text-align: center;">Please press Start to begin with the experiment. </p>
+		<div class="continue">
+			<button type="button" class="next" id = "start">Start</button>
+		</div>
+	</div>
+</div>
+
+<!-- PHYSICS WORLD PRACTICE -->
+<div class="slide" id="practice">
+	<h1 style="text-align: center">Block tower simulation</h1>
+	<p style="text-align: center">(Please don't change the zoom properties of your browser and leave the zoom at 100%.)</p>
+		<div class ="physics_world_practice"></div>
+	<p>Press 'Simulate' to see the bricks falling down on the table. Please watch at least 5 simulations before moving on with the task.</p>
+		<div class="continue">
+			<button type="button" class="next" id="simulate">Simulate</button>
+			<button type="button" class="next" id="continue">Continue</button>
+	</div>
+	<p style="text-align:center">(The 'Continue' button will be enabled once you've watched at least 5 simulations.)</p>
+	<!-- </div> -->
+</div>
+
+<!-- TRIAL -->
+<div class="slide" id="trial">
+	<div id="progress">
+		<div id="progress-text">Progress</div>
+		<div id="indicator-container">
+			<div id="indicator-outer">
+				<div id="indicator-stage"></div>
+			</div>
+		</div>
+	</div>
+	<br>
+	<hr />
+	<div class="spacer"></div>
+	<div class="physics_world_trial"></div>
+	<hr />
+	<!-- <br> -->
+	<div id = "question_container"></div>
+	<div class="spacer"></div>
+	<hr /> 
+	<div class="continue">
+		<button type="button" id="trial_next" class="next">Continue</button>
+	</div>
+</div>   
+
+<!-- COMPREHENSION CHECK QUESTIONS -->
+<div class="slide" id="comprehension">
+	<h1>Check question</h1>
+	<div class="blue">
+		<p><b>Please answer the following question</b>:</p>
+
+		 <br/>
+
+		<p>1. What colors did the bricks have? <br/> <br/> 
+			<input class = "demoQ" type="radio" name="color" value="green and blue"> green and blue<br/> 
+			<input class = "demoQ" type="radio" name="color" value="white and yellow"> white and yellow <br/> 
+			<input class = "demoQ" type="radio" name="color" value="red and black"> red and black <br/> 
+		</p>
+
+		</div>
+		
+		<div class="continue">
+			<button type="button" class="next" id="trial_continue">Continue</button>
+		</div>
+</div>   
+
+<!-- DEMOGRAPHICS -->
+<div class="slide" id="demographics">
+	<h1>Demographic information</h1>
+	<div class="blue">
+		<p>What factors influenced your selection? Do you have any comments regarding the experiment? </p>
+
+		<textarea name="feedback" style="width:760px; height:100px;"  ></textarea> 
+
+		<p><b>Please answer the following questions about yourself to complete the experiment</b>:</p>
+
+		<p><b>1.</b> Age:
+			<input class = "demoQ numberQ" type="number" maxlength = "3" name="age" min="18" max="100" step = "1"> years
+		</p>
+
+		<p><b>2.</b> Gender:
+			<input class = "demoQ" type="radio" name="sex" value="female">Female
+			<input class = "demoQ" type="radio" name="sex" value="male" >Male
+		</p>
+		<br/>
+
+		<br/>
+
+		<p>Please press finish to complete the experiment.</p>
+
+	</div> 
+	
+	<div class="continue">
+		<button type="button" class="next" id="trial_finish">Finish</button>
+	</div>
+</div>
+
