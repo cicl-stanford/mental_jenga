@@ -20,7 +20,7 @@ People make causal judgments about the physical world in everyday life. Might me
 
 * `code/experiments` includes psiTurk code for each of the experiments described in the paper
 * `code/js` includes javascript code used to implement the model and run simulations
-* `code/R` includes R code for analysis of data and simulations (you can also see the analysis [here](https://cicl-stanford.github.io/mental_jenga/docs/analysis/))
+* `code/R` includes R code for analysis of data and simulations (you can also see the analysis [here](https://cicl-stanford.github.io/mental_jenga/analysis/))
 
 `data` contains all (anonymized) data gathered, in addition to files containing the data for every trial used in the experiments.
 
@@ -30,4 +30,4 @@ People make causal judgments about the physical world in everyday life. Might me
 
 ## Interactive visualization
 
-Check out the interactive visualization [here](https://cicl-stanford.github.io/mental_jenga/docs/interface/)!
+Check out the interactive visualization [here](https://cicl-stanford.github.io/mental_jenga/interface/)!
