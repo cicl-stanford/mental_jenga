@@ -1,0 +1,267 @@
+{
+  "stim": [
+    {
+      "ID": 1,
+      "image": "trial1",
+      "a":0,
+      "b":1
+    },
+    {
+      "ID": 3,
+      "image": "trial2",
+      "a":0,
+      "b":1
+    },
+    {
+      "ID": 4,
+      "image": "trial3",
+      "a":0,
+      "b":2
+    },
+    {
+      "ID": 6,
+      "image": "trial4",
+      "a":0,
+      "b":1
+    },
+    {
+      "ID": 8,
+      "image": "trial5",
+      "a":0,
+      "b":2
+    },
+    {
+      "ID": 10,
+      "image": "trial6",
+      "a":0,
+      "b":4
+    },
+    {
+      "ID": 11,
+      "image": "trial7",
+      "a":0,
+      "b":6
+    },
+    {
+      "ID": 12,
+      "image": "trial8",
+      "a":2,
+      "b":0
+    },
+    {
+      "ID": 13,
+      "image": "trial9",
+      "a":2,
+      "b":10
+    },
+    {
+      "ID": 17,
+      "image": "trial10",
+      "a":0,
+      "b":2
+    },
+    {
+      "ID": 18,
+      "image": "trial11",
+      "a":0,
+      "b":4
+    },
+    {
+      "ID": 20,
+      "image": "trial12",
+      "a":3,
+      "b":6
+    },
+    {
+      "ID": 21,
+      "image": "trial13",
+      "a":2,
+      "b":5
+    },
+    {
+      "ID": 22,
+      "image": "trial14",
+      "a":0,
+      "b":8
+    },
+    {
+      "ID": 24,
+      "image": "trial15",
+      "a":0,
+      "b":2
+    },
+    {
+      "ID": 25,
+      "image": "trial16",
+      "a":1,
+      "b":0
+    },
+    {
+      "ID": 27,
+      "image": "trial17",
+      "a":0,
+      "b":2
+    },
+    {
+      "ID": 28,
+      "image": "trial18",
+      "a":0,
+      "b":7
+    },
+    {
+      "ID": 31,
+      "image": "trial19",
+      "a":0,
+      "b":10
+    },
+    {
+      "ID": 32,
+      "image": "trial20",
+      "a":2,
+      "b":11
+    },
+    {
+      "ID": 33,
+      "image": "trial21",
+      "a":0,
+      "b":13
+    },
+    {
+      "ID": 34,
+      "image": "trial22",
+      "a":0,
+      "b":11
+    },
+    {
+      "ID": 37,
+      "image": "trial23",
+      "a":4,
+      "b":10
+    },
+    {
+      "ID": 39,
+      "image": "trial24",
+      "a":2,
+      "b":1
+    },
+    {
+      "ID": 41,
+      "image": "trial25",
+      "a":2,
+      "b":0
+    },
+    {
+      "ID": 42,
+      "image": "trial26",
+      "a":0,
+      "b":12
+    },
+    {
+      "ID": 43,
+      "image": "trial27",
+      "a":0,
+      "b":11
+    },
+    {
+      "ID": 45,
+      "image": "trial28",
+      "a":1,
+      "b":7
+    },
+    {
+      "ID": 48,
+      "image": "trial29",
+      "a":0,
+      "b":13
+    },
+    {
+      "ID": 49,
+      "image": "trial30",
+      "a":0,
+      "b":2
+    },
+    {
+      "ID": 51,
+      "image": "trial31",
+      "a":0,
+      "b":1
+    },
+    {
+      "ID": 52,
+      "image": "trial32",
+      "a":1,
+      "b":13
+    },
+    {
+      "ID": 53,
+      "image": "trial33",
+      "a":1,
+      "b":2
+    },
+    {
+      "ID": 54,
+      "image": "trial34",
+      "a":5,
+      "b":4
+    },
+    {
+      "ID": 56,
+      "image": "trial35",
+      "a":0,
+      "b":5
+    },
+    {
+      "ID": 57,
+      "image": "trial36",
+      "a":3,
+      "b":0
+    },
+    {
+      "ID": 61,
+      "image": "trial37",
+      "a":0,
+      "b":1
+    },
+    {
+      "ID": 63,
+      "image": "trial38",
+      "a":1,
+      "b":10
+    },
+    {
+      "ID": 64,
+      "image": "trial39",
+      "a":0,
+      "b":1
+    },
+    {
+      "ID": 65,
+      "image": "trial40",
+      "a":0,
+      "b":8
+    },
+    {
+      "ID": 67,
+      "image": "trial41",
+      "a":0,
+      "b":3
+    },
+    {
+      "ID": 68,
+      "image": "trial42",
+      "a":0,
+      "b":6
+    },
+    {
+      "ID": 9,
+      "image": "trial43",
+      "a":0,
+      "b":1
+    }
+  ],
+  "questions": [
+    {
+      "q": "To what extent is the <b>black brick</b> responsible for the <span style='color:#888;font-weight:bold'>white brick</span> staying on the table?"
+    }
+  ]
+}

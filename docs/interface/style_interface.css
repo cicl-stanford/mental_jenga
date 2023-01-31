@@ -1,0 +1,175 @@
+#game-frame {
+  display:block;
+  margin:auto;
+  border:5px solid #bbb;
+  overflow:hidden;
+}
+
+.options {
+  text-align:left;
+  margin:auto;
+  width: 750px;
+}
+
+.exp-buttons {
+  width:100%;
+  font-size:0;
+}
+
+.exp-button {
+  display:inline-block;
+  background-color: #eee;
+  padding:3px 20px;
+  font-size:20px;
+  color:#666;
+  margin:auto;
+  text-align:center;
+  cursor:pointer;
+}
+
+#load:hover {
+  background-color: #fbd;
+}
+
+#load-remove:hover {
+  background-color: #fbd;
+}
+
+#level-num {
+  margin-top:10px;
+}
+
+.code {
+  font-family:courier;
+  background-color: #eee;
+  padding:0 3px;
+}
+
+.small {
+  font-size: 14px;
+}
+
+input[type=range] {
+  -webkit-appearance: none;
+  width: 210px;
+}
+input[type=range]:focus {
+  outline: none;
+}
+input[type=range]::-webkit-slider-runnable-track {
+  height: 5px;
+  margin-top:-15px;
+  cursor: pointer;
+  animate: 0.2s;
+  background: #aaa;
+  border-radius:10px;
+}
+input[type=range]::-webkit-slider-thumb {
+  border: 3px solid #bbb;
+  height: 20px;
+  width: 20px;
+  background-color: #eee;
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+  -webkit-appearance: none;
+  margin-top: -8px;
+}
+
+input[type=range]::-moz-range-track {
+  height: 5px;
+  margin-top:-15px;
+  cursor: pointer;
+  animate: 0.2s;
+  background: #aaa;
+  border-radius:10px;
+}
+input[type=range]::-moz-range-thumb {
+  border: 3px solid #bbb;
+  height: 20px;
+  width: 20px;
+  background-color: #eee;
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+  margin-top: -8px;
+}
+input[type=range]::-ms-track {
+  background: transparent;
+  border-color: transparent;
+  color: transparent;
+  height: 5px;
+  margin-top:-15px;
+  cursor: pointer;
+  animate: 0.2s;
+  background: #aaa;
+  border-radius:10px;
+}
+input[type=range]::-ms-thumb {
+  border: 3px solid #bbb;
+  height: 20px;
+  width: 20px;
+  background-color: #eee;
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+  margin-top: -8px;
+}
+
+table {
+  border: none;
+  border-collapse: collapse;
+}
+
+table td {
+  height:45px;
+  border-left: 2px solid #bbb;
+  padding:0 20px;
+}
+
+table td:first-child {
+  border-left: none;
+}
+
+
+html {
+  text-align:center;
+  margin:auto;
+  font-family: Lato;
+  line-height: 30px;
+  font-size:24px;
+  vertical-align: middle;
+  color:#666;
+}
+
+button {
+  font-family: courier;
+  border-radius:0;
+  color:white;
+  border:1px solid black;
+  background-color: black;
+  font-size:12px;
+  width:120px;
+  height:20px;
+  cursor:pointer;
+}
+
+select {
+  font-family: courier;
+  font-size:12px;
+  width:160px;
+  height:24px;
+  outline: 1px inset black;
+  outline-offset:-1px;
+  border: 0;
+  background-color:white;
+}
+
+input[type=text], input[type=number] {
+  border-radius:0;
+  border:0px solid #eee;
+  font-size:24px;
+  width:50px;
+  color:#666;
+  font-family: lato
+}

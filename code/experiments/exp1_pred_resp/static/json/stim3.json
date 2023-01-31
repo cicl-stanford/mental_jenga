@@ -1,0 +1,126 @@
+{
+"stim":[
+        {
+        "ID":1,
+        "image": "tower_image_(1)"
+        },
+        {
+        "ID":2,
+        "image": "tower_image_(2)"
+        },
+        {
+        "ID":3,
+        "image": "tower_image_(4)"
+        },
+        {
+        "ID":4,
+        "image": "tower_image_(5)"
+        },
+        {
+        "ID":5,
+        "image": "tower_image_(6)"
+        },
+        {
+        "ID":6,
+        "image": "tower_image_(7)"
+        },
+        {
+        "ID":7,
+        "image": "tower_image_(8)"
+        },
+        {
+        "ID":8,
+        "image": "tower_image_(13)"
+        },
+        {
+        "ID":9,
+        "image": "tower_image_(14)"
+        },
+        {
+        "ID":10,
+        "image": "tower_image_(15)"
+        },
+        {
+        "ID":11,
+        "image": "tower_image_(16)"
+        },
+        {
+        "ID":12,
+        "image": "tower_image_(17)"
+        },
+        {
+        "ID":13,
+        "image": "tower_image_(18)"
+        },
+        {
+        "ID":14,
+        "image": "tower_image_(19)"
+        },
+        {
+        "ID":15,
+        "image": "tower_image_(21)"
+        },
+        {
+        "ID":16,
+        "image": "tower_image_(22)"
+        },
+        {
+        "ID":17,
+        "image": "tower_image_(23)"
+        },
+        {
+        "ID":18,
+        "image": "tower_image_(25)"
+        },
+        {
+        "ID":19,
+        "image": "tower_image_(26)"
+        },
+        {
+        "ID":20,
+        "image": "tower_image_(27)"
+        },
+        {
+        "ID":21,
+        "image": "tower_image_(28)"
+        },
+        {
+        "ID":22,
+        "image": "tower_image_(29)"
+        },
+        {
+        "ID":23,
+        "image": "tower_image_(30)"
+        },
+        {
+        "ID":24,
+        "image": "tower_image_(31)"
+        },
+        {
+        "ID":25,
+        "image": "tower_image_(32)"
+        },
+        {
+        "ID":26,
+        "image": "tower_image_(33)"
+        },
+        {
+        "ID":27,
+        "image": "tower_image_(34)"
+        },
+        {
+        "ID":28,
+        "image": "tower_image_(35)"
+        },
+        {
+        "ID":29,
+        "image": "tower_image_(36)"
+        },
+        {
+        "ID":30,
+        "image": "tower_image_(37)"
+        }
+
+],
+        "questions":[{"q":"To what extent is the red block responsible that the gray blocks stay on the table?"}]      
+}

@@ -1,0 +1,227 @@
+{
+  "stim": [
+    {
+      "ID": 1,
+      "image": "trial1",
+      "bricks":15
+    },
+    {
+      "ID": 2,
+      "image": "trial2",
+      "bricks":15
+    },
+    {
+      "ID": 3,
+      "image": "trial3",
+      "bricks":15
+    },
+    {
+      "ID": 4,
+      "image": "trial4",
+      "bricks":15
+    },
+    {
+      "ID": 5,
+      "image": "trial5",
+      "bricks": 15
+    },
+    {
+      "ID": 6,
+      "image": "trial6",
+      "bricks": 15
+    },
+    {
+      "ID": 7,
+      "image": "trial7",
+      "bricks":15
+    },
+    {
+      "ID": 8,
+      "image": "trial8",
+      "bricks":14
+    },
+    {
+      "ID": 9,
+      "image": "trial9",
+      "bricks":14
+    },
+    {
+      "ID": 10,
+      "image": "trial10",
+      "bricks": 14
+    },
+    {
+      "ID": 11,
+      "image": "trial11",
+      "bricks": 14
+    },
+    {
+      "ID": 12,
+      "image": "trial12",
+      "bricks": 14
+    },
+    {
+      "ID": 13,
+      "image": "trial13",
+      "bricks": 14
+    },
+    {
+      "ID": 14,
+      "image": "trial14",
+      "bricks": 14
+    },
+    {
+      "ID": 15,
+      "image": "trial15",
+      "bricks": 15
+    },
+    {
+      "ID": 16,
+      "image": "trial16",
+      "bricks": 15
+    },
+    {
+      "ID": 17,
+      "image": "trial17",
+      "bricks": 15
+    },
+    {
+      "ID": 18,
+      "image": "trial18",
+      "bricks": 15
+    },
+    {
+      "ID": 19,
+      "image": "trial19",
+      "bricks":15
+    },
+    {
+      "ID": 20,
+      "image": "trial20",
+      "bricks": 15
+    },
+    {
+      "ID": 21,
+      "image": "trial21",
+      "bricks": 15
+    },
+    {
+      "ID": 22,
+      "image": "trial22",
+      "bricks": 14
+    },
+    {
+      "ID": 23,
+      "image": "trial23",
+      "bricks": 14
+    },
+    {
+      "ID": 24,
+      "image": "trial24",
+      "bricks": 14
+    },
+    {
+      "ID": 25,
+      "image": "trial25",
+      "bricks": 14
+    },
+    {
+      "ID": 26,
+      "image": "trial26",
+      "bricks": 14
+    },
+    {
+      "ID": 27,
+      "image": "trial27",
+      "bricks": 14
+    },
+    {
+      "ID": 28,
+      "image": "trial28",
+      "bricks": 14
+    },
+    {
+      "ID": 29,
+      "image": "trial29",
+      "bricks": 13
+    },
+    {
+      "ID": 30,
+      "image": "trial30",
+      "bricks": 13
+    },
+    {
+      "ID": 31,
+      "image": "trial31",
+      "bricks": 13
+    },
+    {
+      "ID": 32,
+      "image": "trial32",
+      "bricks": 13
+    },
+    {
+      "ID": 33,
+      "image": "trial33",
+      "bricks": 13
+    },
+    {
+      "ID": 34,
+      "image": "trial34",
+      "bricks": 13
+    },
+    {
+      "ID": 35,
+      "image": "trial35",
+      "bricks": 13
+    },
+    {
+      "ID": 36,
+      "image": "trial36",
+      "bricks": 13
+    },
+    {
+      "ID": 37,
+      "image": "trial37",
+      "bricks": 13
+    },
+    {
+      "ID": 38,
+      "image": "trial38",
+      "bricks": 13
+    },
+    {
+      "ID": 39,
+      "image": "trial39",
+      "bricks": 13
+    },
+    {
+      "ID": 40,
+      "image": "trial40",
+      "bricks": 13
+    },
+    {
+      "ID": 41,
+      "image": "trial41",
+      "bricks": 13
+    },
+    {
+      "ID": 42,
+      "image": "trial42",
+      "bricks": 13
+    },
+    {
+      "ID": 43,
+      "image": "trial43",
+      "bricks": 12
+    }
+  ],
+  "questions": [
+    {
+      "q": "How many of the <span style='color:#C74900;font-weight:bold'>red bricks</span> would fall off the table, if the <b>black brick</b> wasn't there?"
+    },
+    {
+      "q": "How responsible is the <b>black brick</b> for the <span style='color:#C74900;font-weight:bold'>red bricks</span> staying on the table?"
+    }
+  ]
+}

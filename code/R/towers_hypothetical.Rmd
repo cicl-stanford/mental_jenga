@@ -1,0 +1,3595 @@
+---
+title: "Mental Jenga"
+author: "Liang Zhou, Kevin Smith, Josh Tenenbaum & Tobias Gerstenberg"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_depth: 4
+    theme: cosmo
+    highlight: tango
+---
+
+# Load packages 
+
+```{r load-packages, message=F}
+library("Hmisc")
+library("gtools")
+library("magick")
+library("tidyjson")
+library("png")
+library("RSQLite")
+library("tidyverse")
+library("patchwork")
+library("corrr")
+library("ggrepel")
+library("ggpubr")
+library("lsr")
+library("knitr")
+library("grid")
+library("xtable")
+library("rjson")
+library("transport")
+library("pdftools")
+```
+
+```{r set-theme}
+theme_set(theme_classic() +
+            theme(text = element_text(size = 20,
+                                      family = "Helvetica")))
+
+# theme_set(theme_classic())
+
+opts_chunk$set(comment = "",
+               results = "hold",
+               fig.show = "hold")
+
+# suppress grouping warning 
+options(dplyr.summarise.inform = F)
+```
+
+# Helper functions 
+
+```{r}
+# L2
+l2 = function(x, y, w = NULL) {
+  if (is.null(w)) {
+    return(mean((x - y)^2))
+  } else {
+    return(weighted.mean((x-y)^2, w))
+  }
+}
+
+# root mean squared error
+rmse = function(x, y) {
+  return(sqrt(mean(l2(x, y))))
+}
+
+# natural log clipped between 0.01 and 0.99
+logclip = function(x) {
+  return(log(pmax(pmin(0.99, x), 0.01)))
+}
+
+# get the clipped nll, with optional weights
+nll = function(p, x, w = NULL) {
+  if (is.null(w)) {
+    return(-mean(p * logclip(x) + (1 - p) * logclip(1 - x)))
+  } else {
+    return(-weighted.mean(p * logclip(x) + (1 - p) * logclip(1 - x), w))
+  }
+}
+
+# go from logit to probability, used for fitting logistic models
+logit2prob = function(logit) {
+  odds = exp(logit)
+  prob = odds / (1 + odds)
+  return(prob)
+}
+```
+
+# Load Data
+
+- load all experiment data, including data from MTurk as well as stimuli and features
+
+## Experiment 1
+
+```{r}
+load("data/exp1_participants.RData")
+load("data/exp1_selection.RData")
+load("data/exp1_prediction.RData")
+load("data/exp1_responsibility.RData")
+load("data/exp1_info.RData")
+
+load("cache/exp1_features_all.RData")
+load("cache/exp1_model.RData")
+```
+
+## Experiment 2
+
+```{r}
+load("data/exp2_participants.RData")
+load("data/exp2_selection.RData")
+load("data/exp2_prediction.RData")
+load("data/exp2_responsibility.RData")
+load("data/exp2_info.RData")
+
+load("cache/exp2_features_all.RData")
+load("cache/exp2_model.RData")
+```
+
+## Experiment 3
+
+```{r}
+load("data/exp3_participants.RData")
+load("data/exp3_prediction.RData")
+load("data/exp3_responsibility.RData")
+load("data/exp3_info.RData")
+
+load("cache/exp3_features_all.RData")
+load("cache/exp3_model.RData")
+```
+
+# Seed
+
+```{r}
+set.seed(1)
+```
+
+# Demographics
+
+## Experiment 1
+
+```{r, eval=F}
+df.exp1.participants %>% 
+  mutate(age = as.numeric(age)) %>% 
+  summarize(age.mean = mean(age),
+            age.sd = sd(age),
+            nfemale = sum(sex == "female"),
+            nmale = sum(sex == "male"))
+
+# experiment_3 is selection
+# experiment_2, condition 0 is prediction
+# experiment_2, condition 1 is responsibility
+df.exp1.participants %>% 
+  mutate(across(.cols = c(age, time),
+                .fns = ~ as.numeric(.))) %>% 
+  group_by(experiment, condition) %>%
+  summarize(time.mean = mean(time),
+    time.sd = sd(time),
+    exclude = sum(exclude),
+    n = n(),
+    nfemale = sum(sex == "female"),
+    nmale = sum(sex == "male")) %>%
+    mutate(across(.cols = contains("time"),
+                .fns = ~ round(., 2)))
+
+```
+
+## Experiment 2
+
+```{r, eval=F}
+df.exp2.participants %>% 
+  mutate(age = as.numeric(age)) %>% 
+  summarize(age.mean = mean(age),
+            age.sd = sd(age),
+            nfemale = sum(sex == "female"),
+            nmale = sum(sex == "male"))
+
+# experiment_5 is selection
+# experiment_4, condition 0 is prediction
+# experiment_4, condition 1 is responsibility
+df.exp2.participants %>%
+  mutate(across(.cols = c(age, time),
+                .fns = ~ as.numeric(.))) %>% 
+  group_by(experiment, condition) %>%
+  summarize(time.mean = mean(time),
+    time.sd = sd(time),
+    exclude = sum(exclude),
+    n = n(),
+    nfemale = sum(sex == "female"),
+    nmale = sum(sex == "male")) %>%
+    mutate(across(.cols = contains("time"),
+                .fns = ~ round(., 2)))
+
+```
+
+## Experiment 3
+
+```{r, eval=F}
+df.exp3.participants %>% 
+  mutate(age = as.numeric(age)) %>% 
+  summarize(age.mean = mean(age),
+            age.sd = sd(age),
+            nfemale = sum(gender == "female"),
+            nmale = sum(gender == "male"))
+
+# experiment_7 is responsibility
+# experiment_8 is prediction
+
+# calculating total time spent in conditions
+df.exp3.prediction %>% 
+  summarize(mean(rt), sd(rt)) / 60 / 1000 * 42
+df.exp3.responsibility %>% 
+  summarize(mean(rt), sd(rt)) / 60 / 1000 * 42
+```
+
+# Remove unnecessary rows
+
+- 
+- catch trials are trial 5 in experiment 1, and trial 43 in experiment 2
+- catch trial already removed in experiment 2 participant data
+
+```{r}
+df.exp1.info = df.exp1.info %>%
+  filter(trial != 5, index != 0)
+df.exp1.selection = df.exp1.selection %>% 
+  filter(trial != 5)
+df.exp1.model = df.exp1.model %>% 
+  filter(trial != 5, index != 0)
+df.exp1.features.all = df.exp1.features.all %>% 
+  filter(trial != 5)
+df.exp2.info = df.exp2.info %>%
+  filter(trial != 43, index != 0)
+df.exp2.selection = df.exp2.selection %>% 
+  filter(trial != 43)
+df.exp2.model = df.exp2.model %>% 
+  filter(trial != 43, index != 0)
+df.exp2.features.all = df.exp2.features.all %>% 
+  filter(trial != 43)
+df.exp3.info = df.exp3.info %>% 
+  filter(trial != 43)
+df.exp3.features.all = df.exp3.features.all %>% 
+  filter(trial != 43)
+```
+
+# Create analysis dataframes
+
+- df.exp#.selection.*: data from "selection" condition, processed into a palatable format
+- df.exp#.trials: data from "responsibility" and "prediction" conditions
+
+## Experiment 1
+
+```{r}
+# creates long df with a row for each brick seen in each trial by each participant
+df.exp1.selection.long = df.exp1.info %>%
+  select(trial, index) %>%
+  crossing(participant = unique(df.exp1.selection$participant)) %>%
+  left_join(df.exp1.selection %>%
+              unnest(response) %>%
+              select(participant, trial, index = response) %>%
+              mutate(response = 1),
+            by = c("participant", "trial", "index")) %>%
+  replace_na(list(response = 0)) %>%
+  arrange(participant, trial, index) %>%
+  select(participant, trial, index, response)
+
+# averages out participant selection responses on the individual brick level
+df.exp1.selection.brick = df.exp1.selection.long %>%
+  group_by(trial, index) %>%
+  summarize(across(response, mean), .groups = "drop")
+  
+# prediction/responsibility conditions
+df.exp1.trials = df.exp1.info %>%
+  group_by(trial) %>%
+  summarize(n_bricks = n()) %>%
+  left_join(df.exp1.responsibility %>%
+              group_by(trial) %>%
+              summarize(r_mean = mean(response),
+                        r_low = smean.cl.boot(response)[2],
+                        r_high = smean.cl.boot(response)[3]),
+    by = "trial") %>%
+  left_join(df.exp1.prediction %>%
+              group_by(trial) %>%
+              summarize(p_mean = mean(response),
+                        p_low = smean.cl.boot(response)[2],
+                        p_high = smean.cl.boot(response)[3]),
+    by = "trial")
+```
+
+
+## Experiment 2
+
+```{r}
+df.exp2.selection.long = df.exp2.info %>%
+  select(trial, index) %>%
+  crossing(participant = unique(df.exp2.selection$participant)) %>%
+  left_join(df.exp2.selection %>%
+              unnest(response) %>%
+              select(participant, trial, index = response) %>%
+              mutate(response = 1),
+            by = c("participant", "trial", "index")) %>%
+  replace_na(list(response = 0)) %>%
+  arrange(participant, trial, index) %>%
+  select(participant, trial, index, response)
+
+df.exp2.selection.brick = df.exp2.selection.long %>%
+  group_by(trial, index) %>%
+  summarize(across(response, mean), .groups = "drop")
+
+df.exp2.trials = df.exp2.info %>%
+  group_by(trial) %>%
+  summarize(n_bricks = n()) %>%
+  left_join(df.exp2.responsibility %>%
+              group_by(trial) %>%
+              summarize(r_mean = mean(response),
+                        r_low = smean.cl.boot(response)[2],
+                        r_high = smean.cl.boot(response)[3]),
+    by = "trial") %>%
+  left_join(df.exp2.prediction %>%
+              group_by(trial) %>%
+              summarize(p_mean = mean(response),
+                        p_low = smean.cl.boot(response)[2],
+                        p_high = smean.cl.boot(response)[3]),
+    by = "trial")
+```
+
+
+## Experiment 3
+
+```{r}
+df.exp3.trials = df.exp3.info %>%
+  select(trial, index, color, pfall, qfall, fall) %>% 
+  na.omit() %>% 
+  nest_by(trial, pfall, qfall) %>% 
+  mutate(A = data %>% filter(color == "A") %>% pull(index),
+         B = data %>% filter(color == "B") %>% pull(index),
+         fall = data %>% filter(color == "B") %>% pull(fall)) %>% 
+  select(-data) %>% 
+  left_join(df.exp3.responsibility %>%
+              group_by(trial) %>%
+              summarize(r_mean = mean(response),
+                        r_low = smean.cl.boot(response)[2],
+                        r_high = smean.cl.boot(response)[3]),
+    by = "trial") %>%
+  left_join(df.exp3.prediction %>%
+              select(trial, response) %>%
+              group_by(trial) %>%
+              summarize(p_mean = mean(response),
+                        p_low = smean.cl.boot(response)[2],
+                        p_high = smean.cl.boot(response)[3]),
+    by = "trial") %>%
+  rename(a = A, b = B, probability = pfall, class = qfall) %>% 
+  ungroup() %>% 
+  filter(trial != 43)
+```
+
+# Fitting individual experiments
+
+## Experiment 1
+
+```{r}
+df.exp1.master = df.exp1.model %>% 
+  mutate(response = df.exp1.selection.brick$response) %>% 
+  select(trial, index, response, everything())
+
+df.exp1.bestmodels = df.exp1.master %>% 
+  summarize(across(contains("_"), ~nll(response, .) )) %>% 
+  pivot_longer(contains("_"), names_to = "modelname") %>% 
+  arrange(value)
+```
+
+## Experiment 2
+
+```{r}
+df.exp2.master = df.exp2.model %>% 
+  mutate(response = df.exp2.selection.brick$response) %>% 
+  select(trial, index, response, everything())
+
+df.exp2.bestmodels = df.exp2.master %>% 
+  summarize(across(contains("_"), ~nll(response, .) )) %>% 
+  pivot_longer(contains("_"), names_to = "modelname") %>% 
+  arrange(value)
+```
+
+## Experiment 3
+
+```{r}
+df.exp3.master = df.exp3.model %>% 
+  left_join(df.exp3.trials %>% 
+              select(trial, r_mean, r_low, r_high, p_mean, p_low, p_high),
+            by = "trial") %>% 
+  mutate(across(c(r_mean, p_mean, r_low, r_high, p_low, p_high), ~ . / 100)) %>% 
+  select(trial, index, contains("p_"), contains("r_"), contains("_"))
+
+df.exp3.bestmodels = df.exp3.master %>% 
+  summarize(across(contains("_"), ~l2(r_mean, .) )) %>% 
+  select(-contains('r_'), -contains('p_')) %>% 
+  pivot_longer(contains("_"), names_to = "modelname") %>% 
+  arrange(value)
+```
+
+# Fitting all experiments
+
+```{r}
+# combine master dfs
+df.exp123.master = bind_rows(
+  list(df.exp1.master,
+       df.exp2.master,
+       df.exp3.master %>% 
+         mutate(response = r_mean) %>%
+         select(-contains("r_"), -contains("p_"))
+       ), .id = "exp") %>% 
+  mutate(exp = as.numeric(exp)) %>% 
+  group_by(exp) %>% 
+  mutate(w = 1/n()) %>% 
+  ungroup() %>% 
+  select(exp, trial, index, response, w, everything())
+
+df.exp123.bestmodels = df.exp123.master %>% 
+  summarize(across(contains("_"), ~nll(response, .) )) %>% 
+  pivot_longer(contains("_"), names_to = "modelname") %>% 
+  arrange(value)
+
+tmp1 = df.exp123.master %>% 
+  filter(exp == 1) %>% 
+  summarize(across(contains("_"), ~nll(response, .) )) %>%
+  pivot_longer(contains("_"), names_to = "modelname") %>% 
+  arrange(value) %>% 
+  filter(row_number() == 1) %>% 
+  pull(modelname)
+
+tmp2 = df.exp123.master %>% 
+  filter(exp == 2) %>% 
+  summarize(across(contains("_"), ~nll(response, .) )) %>%
+  pivot_longer(contains("_"), names_to = "modelname") %>% 
+  arrange(value) %>% 
+  filter(row_number() == 1) %>% 
+  pull(modelname)
+
+tmp12 = df.exp123.master %>% 
+  filter(exp == 1 | exp == 2) %>% 
+  summarize(across(contains("_"), ~nll(response, .) )) %>%
+  pivot_longer(contains("_"), names_to = "modelname") %>% 
+  arrange(value) %>% 
+  filter(row_number() == 1) %>% 
+  pull(modelname)
+
+tmp123 = df.exp123.master %>% 
+  summarize(across(contains("_"), ~nll(response, .) )) %>%
+  pivot_longer(contains("_"), names_to = "modelname") %>% 
+  arrange(value) %>% 
+  filter(row_number() == 1) %>% 
+  pull(modelname)
+
+models = c(tmp1, tmp2, tmp12, tmp123)
+
+# correlations for all bricks, regardless of experiment
+df.tmp = df.exp123.master %>% 
+  select(response, all_of(models)) %>% 
+  mutate(hsm1 = !!sym(models[[1]]),
+         hsm2 = !!sym(models[[2]]),
+         hsm12 = !!sym(models[[3]]),
+         hsm123 = !!sym(models[[4]])) %>% 
+  select(-all_of(models)) %>% 
+  corrr::correlate(quiet=T) %>% 
+  select(response) %>% 
+  filter(row_number() != 1)
+
+df.r_model = df.exp123.master %>% 
+  select(exp, response, all_of(models)) %>% 
+  mutate(hsm1 = !!sym(models[[1]]),
+         hsm2 = !!sym(models[[2]]),
+         hsm12 = !!sym(models[[3]]),
+         hsm123 = !!sym(models[[4]])) %>% 
+  select(-all_of(models)) %>% 
+  nest_by(exp) %>% 
+  summarize(corrr::correlate(data, quiet=T)) %>% 
+  filter(row_number() == 1) %>% 
+  pivot_longer(contains("hsm"), names_to = "params", values_to = "vals") %>% 
+  pivot_wider(names_from = exp, values_from = vals) %>% 
+  mutate(fit = c("hsm:1", "hsm:2", "hsm:1,2", "hsm:1,2,3")) %>% 
+  select(fit, exp1 = "1", exp2 = "2", exp3 = "3", params, -term, -response) %>% 
+  mutate("all" = df.tmp$response) %>% 
+  mutate(params = models) %>% 
+  select(fit, exp1, exp2, exp3, all, params)
+
+fit_bestmodel = tmp123
+```
+
+# Combine experiment data
+
+- combine features dataframes, removing columns that are very similar to others
+- combine selection dataframes. treating experiment 3 "prediction" condition as selection
+- combine trials dataframes. create dataframe excluding exp3 as well
+
+```{r}
+df.exp123.features = bind_rows(
+  list(df.exp1.features.all,
+       df.exp2.features.all,
+       df.exp3.features.all
+       ), .id = "exp") %>% 
+  mutate(across(-c(exp, trial, id), ~as.vector(scale(.)))) %>% 
+  select(-s.avg_x, -b.x, -o.dx, -o.dy, -o.x) %>% 
+  mutate(exp = as.numeric(exp)) %>% 
+  rename(index = id)
+
+df.exp123.selection = bind_rows(
+  list(df.exp1.selection.brick,
+       df.exp2.selection.brick,
+       df.exp3.trials %>% 
+         select(trial, index = b, response = p_mean) %>% 
+         mutate(response = response / 100)
+       ), .id = "exp") %>% 
+  mutate(exp = as.numeric(exp))
+
+df.exp12.trials = bind_rows(
+  list(df.exp1.trials,
+       df.exp2.trials
+       ), .id = "exp") %>% 
+  mutate(exp = as.numeric(exp))
+
+df.exp123.trials = bind_rows(
+  list(df.exp1.trials,
+       df.exp2.trials,
+       df.exp3.trials %>% 
+         select(trial, r_mean, r_low, r_high, p_mean, p_low, p_high) %>% 
+         mutate(n_bricks = 1) %>% 
+         mutate(across(contains("p_"), ~./100))
+       ), .id = "exp") %>% 
+  mutate(exp = as.numeric(exp))
+```
+
+# Feature correlations
+
+## Features v features
+
+- check the correlations between features
+
+```{r eval=F}
+df.tmp.corr = corrr::correlate(df.exp123.features %>% select(exp, trial, index, s.avg_y, s.avg_edge_dist, s.avg_angle, everything()) %>% select(-exp, -trial, -index))
+# xtable(df.tmp.corr)
+df.tmp.corr
+```
+
+- remove feature(s) with high correlations, i.e. correlation > 0.8, with each other
+- `s.max_y` should be removed
+
+```{r}
+df.exp123.features = df.exp123.features %>% 
+  select(-s.max_y)
+```
+
+
+## Features v responsibility
+
+- correlations between features and participant responsibility judgments
+- remove features with correlation < 0.1 in all 3 experiments
+- (no features should be removed)
+
+```{r eval=F}
+df.tmp = df.exp123.features %>% 
+  left_join(df.exp123.trials %>% 
+              select(exp, trial, response = r_mean), by = c("exp", "trial"))
+
+feats = colnames(df.exp123.features)
+feats = feats[! feats %in% c("exp", "trial", "index")]
+
+# relevant features for exps 1 and 2: don't include white block features
+l.regress12 = list(feats[lapply(feats, (function(x) startsWith(x, "s"))) == T],
+                      feats[lapply(feats, (function(x) startsWith(x, "b"))) == T]
+)
+l.regress12 = append(l.regress12, list(unlist(l.regress12)))
+
+# relevant features for exp 3: include white block features
+l.regress3 = list(feats[lapply(feats, (function(x) startsWith(x, "s"))) == T],
+                      feats[lapply(feats, (function(x) startsWith(x, "b"))) == T],
+                      feats[lapply(feats, (function(x) startsWith(x, "o"))) == T]
+)
+l.regress3 = append(l.regress3, list(unlist(l.regress3)))
+
+
+# individual feature correlations per experiment
+df.tmp %>% 
+  group_by(exp) %>% 
+  summarize(across(feats, ~cor(., response)))
+
+# individual feature correlations across all experiments
+df.tmp %>% 
+  summarize(across(feats, ~cor(., response)))
+
+# feature group regressions
+names12 = c("scene", "black", "all")
+names3 = c("scene", "black", "other", "all")
+corrs1 = c()
+corrs2 = c()
+corrs3 = c()
+corrs123 = c()
+for (cols in l.regress12) {
+  df.tmp2 = df.tmp %>% 
+    filter(exp == 1) %>%
+    select(all_of(cols), response) %>% 
+    mutate(reg = lm(as.formula(paste("response ~ ", 
+                                     paste(cols, collapse="+"))))$fitted.values)
+  corrs1 = c(corrs1, cor(df.tmp2$reg, df.tmp2$response))
+  df.tmp2 = df.tmp %>%
+    filter(exp == 2) %>%
+    select(all_of(cols), response) %>%
+    mutate(reg = lm(as.formula(paste("response ~ ", 
+                                     paste(cols, collapse="+"))))$fitted.values)
+  corrs2 = c(corrs2, cor(df.tmp2$reg, df.tmp2$response))
+  df.tmp2 = df.tmp %>%
+    select(all_of(cols), response) %>%
+    mutate(reg = lm(as.formula(paste("response ~ ", 
+                                     paste(cols, collapse="+"))))$fitted.values)
+  corrs123 = c(corrs123, cor(df.tmp2$reg, df.tmp2$response))
+}
+for (cols in l.regress3) {
+  df.tmp2 = df.tmp %>% 
+    filter(exp == 3) %>%
+    select(all_of(cols), response) %>% 
+    mutate(reg = lm(as.formula(paste("response ~ ", 
+                                     paste(cols, collapse="+"))))$fitted.values)
+  corrs3 = c(corrs3, cor(df.tmp2$reg, df.tmp2$response))
+}
+df.exp12.rcorrs = data.frame(names12, corrs1, corrs2, corrs123)
+df.exp3.rcorrs = data.frame(names3, corrs3)
+
+```
+
+## Features v selection
+
+```{r, eval=F}
+df.tmp = df.exp123.features %>% 
+  left_join(df.exp123.selection %>% 
+              select(exp, trial, index, response), by = c("exp", "trial", "index"))
+
+feats = colnames(df.exp123.features)
+feats = feats[! feats %in% c("exp", "trial", "index")]
+
+# include all feature groups in regression
+l.regress = list(feats[lapply(feats, (function(x) startsWith(x, "s"))) == T],
+                      feats[lapply(feats, (function(x) startsWith(x, "b"))) == T],
+                      feats[lapply(feats, (function(x) startsWith(x, "o"))) == T]
+)
+l.regress = append(l.regress, list(unlist(l.regress)))
+
+# individual feature correlations per experiment
+df.tmp %>% 
+  group_by(exp) %>% 
+  summarize(across(all_of(feats), ~cor(., response)))
+
+# individual feature correlations across all experiments
+df.tmp %>% 
+  summarize(across(feats, ~cor(., response)))
+
+names = c("scene", "black", "other", "all")
+corrs1 = c()
+corrs2 = c()
+corrs3 = c()
+corrs123 = c()
+for (cols in l.regress) {
+  df.tmp2 = df.tmp %>% 
+    filter(exp == 1) %>%
+    select(all_of(cols), response) %>% 
+    mutate(reg = lm(as.formula(paste("response ~ ", 
+                                     paste(cols, collapse="+"))))$fitted.values)
+  corrs1 = c(corrs1, cor(df.tmp2$reg, df.tmp2$response))
+  df.tmp2 = df.tmp %>%
+    filter(exp == 2) %>%
+    select(all_of(cols), response) %>%
+    mutate(reg = lm(as.formula(paste("response ~ ", 
+                                     paste(cols, collapse="+"))))$fitted.values)
+  corrs2 = c(corrs2, cor(df.tmp2$reg, df.tmp2$response))
+  df.tmp2 = df.tmp %>%
+    select(all_of(cols), response) %>%
+    mutate(reg = lm(as.formula(paste("response ~ ", 
+                                     paste(cols, collapse="+"))))$fitted.values)
+  corrs123 = c(corrs123, cor(df.tmp2$reg, df.tmp2$response))
+  df.tmp2 = df.tmp %>% 
+    filter(exp == 3) %>%
+    select(all_of(cols), response) %>% 
+    mutate(reg = lm(as.formula(paste("response ~ ", 
+                                     paste(cols, collapse="+"))))$fitted.values)
+  corrs3 = c(corrs3, cor(df.tmp2$reg, df.tmp2$response))
+}
+df.exp123.correlations = data.frame(names, corrs1, corrs2, corrs3, corrs123)
+```
+
+# Fitting features
+
+- fit features models to data combined from all or a subset of all experiments
+- `tmpX` are models fit to experiments X
+
+```{r warning=FALSE}
+# uncomment a couple lines if we want weighted regression
+df.tmp.features = df.exp123.selection %>% 
+  left_join(df.exp123.features, by = c("exp", "trial", "index"))
+
+tmp1 = df.tmp.features %>% 
+  filter(exp == 1) %>% 
+  glm(response ~ . - exp - trial - index, data = ., family = "binomial")
+tmp2 = df.tmp.features %>% 
+  filter(exp == 2) %>% 
+  glm(response ~ . - exp - trial - index, data = ., family = "binomial")
+tmp12 = df.tmp.features %>% 
+  filter(exp == 1 | exp == 2) %>% 
+  glm(response ~ . - exp - trial - index, data = ., family = "binomial")
+tmp123 = df.tmp.features %>% 
+  glm(response ~ . - exp - trial - index, data = ., family = "binomial")
+tmp123sq = df.tmp.features %>% 
+  glm(response ~ (. - exp - trial - index)^2, data = ., family = "binomial")
+
+regression_best = tmp123
+
+df.exp123.regression = df.tmp.features %>% 
+  mutate(fit1 = logit2prob(predict(tmp1, df.tmp.features))) %>% 
+  mutate(fit2 = logit2prob(predict(tmp2, df.tmp.features))) %>% 
+  mutate(fit12 = logit2prob(predict(tmp12, df.tmp.features))) %>% 
+  mutate(fit123 = logit2prob(predict(tmp123, df.tmp.features))) %>% 
+  mutate(fit123sq = logit2prob(predict(tmp123sq, df.tmp.features)))
+
+# correlations for all bricks, regardless of experiment
+df.tmp = df.exp123.regression %>% 
+  select(response, fit1, fit2, fit12, fit123, fit123sq) %>% 
+  corrr::correlate(quiet=T) %>% 
+  select(response) %>% 
+  filter(row_number() != 1)
+
+# experiment-specific correlations
+df.r_features = df.exp123.regression %>% 
+  select(exp, response, fit1, fit2, fit12, fit123, fit123sq) %>% 
+  nest_by(exp) %>% 
+  summarize(corrr::correlate(data, quiet=T)) %>% 
+  filter(row_number() == 1) %>% 
+  pivot_longer(contains("fit"), names_to = "params", values_to = "vals") %>% 
+  pivot_wider(names_from = exp, values_from = vals) %>% 
+  mutate("fit" = c("feat:1", "feat:2", "feat:1,2", "feat:1,2,3", "feat:1,2,3,sq")) %>% 
+  select(fit, exp1 = "1", exp2 = "2", exp3 = "3", -term, -response) %>% 
+  mutate("all" = df.tmp$response)
+  
+```
+
+- combine all the results above into an easy-to-read table
+- also includes best parameters found
+
+```{r}
+bind_rows(df.r_model, df.r_features)
+```
+
+# Cross validation
+
+## Create model classes
+
+- "submodels" of the full HSM are included
+
+```{r}
+l.full_sci = colnames(df.exp1.master %>%
+                        select(contains("hsm")) %>%
+                        rename_with(.fn = ~ str_remove(., "hsm_")))
+
+l.perceptual_intervention_dynamics = 
+  l.full_sci[unlist(lapply(
+    l.full_sci,
+    function(v) str_detect(v, "^[:digit:]+,[:digit:]+,[:digit:]+$")))]
+l.perceptual_intervention =
+  l.full_sci[unlist(lapply(
+    l.full_sci,
+    function(v) str_detect(v, "^[:digit:]+,[:digit:]+,0$")))]
+l.perceptual_dynamics =
+  l.full_sci[unlist(lapply(
+    l.full_sci,
+    function(v) str_detect(v, "^[:digit:]+,0,[:digit:]+$")))]
+l.intervention_dynamics =
+  l.full_sci[unlist(lapply(
+    l.full_sci,
+    function(v) str_detect(v, "^0,[:digit:]+,[:digit:]+$")))]
+
+l.perceptual =
+  l.full_sci[unlist(lapply(l.full_sci, function(v) str_detect(v, "^[:digit:]+,0,0$")))]
+l.intervention =
+  l.full_sci[unlist(lapply(l.full_sci, function(v) str_detect(v, "^0,[:digit:]+,0$")))]
+l.dynamics =
+  l.full_sci[unlist(lapply(l.full_sci, function(v) str_detect(v, "^0,0,[:digit:]+$")))]
+
+l.models = list(
+  "pid" = l.perceptual_intervention_dynamics,
+  "pi" = l.perceptual_intervention,
+  "pd" = l.perceptual_dynamics,
+  "id" = l.intervention_dynamics,
+  "p" = l.perceptual,
+  "i" = l.intervention,
+  "d" = l.dynamics
+)
+```
+
+- create model and feature dfs
+
+```{r}
+# choose whether to do weighted xval or not
+weighted = F
+
+df.summary.model = df.exp123.master %>% 
+  group_by(exp) %>%
+  mutate(weight = ifelse(weighted, 1 / n(), 1)) %>%
+  ungroup() %>%
+  select(exp, trial, index, weight, everything())
+
+df.summary.model_losses = df.summary.model %>%
+  mutate(across(contains(","), ~(response - .)^2)) %>%
+  set_names(~ str_replace_all(., "hsm_", ""))
+
+df.summary.features = df.exp123.features %>% 
+  mutate(response = df.exp123.selection$response) %>% 
+  group_by(exp) %>%
+  mutate(weight = ifelse(weighted, 1 / n(), 1)) %>%
+  ungroup() %>%
+  select(exp, trial, index, weight, response, everything()) %>%
+  mutate(across(-c(exp, trial, index, response, weight), scale))
+
+n_total = nrow(df.summary.model)
+```
+
+## Run xval
+
+```{r}
+load("cache/xval_losses.RData")
+```
+
+- we choose to do half-half cross-validation
+- best parameters are saved after each iteration
+
+```{r eval=F, warning=F}
+df.cross_val =
+  setNames(data.frame(matrix(ncol = 5, nrow = 0), stringsAsFactors = FALSE),
+           c("model", "A_losses_mean", "B_losses_mean", "A_losses_sd", "B_losses_sd"))
+df.losses =
+  data.frame("model" = character(),
+             "A_losses" = double(),
+             "B_losses" = double(),
+             "A_params" = character(),
+             "cors" = double(),
+             stringsAsFactors = F)
+
+n = 200
+verbose = F
+
+for (i in 1:n) {
+  if (verbose) print(paste0("Cross val #", i))
+
+  # don't have to worry about specialized exp1/exp2 selection
+  order = sample(1:n_total)
+  ixs_A = order[1:ceiling(n_total / 2)]
+  ixs_B = order[ceiling(n_total / 2):n_total]
+
+  df.arrangement_A = df.summary.model_losses %>% slice(ixs_A)
+  df.arrangement_B = df.summary.model_losses %>% slice(ixs_B)
+
+  df.losses_n = setNames(data.frame(matrix(ncol = 5, nrow = 0)),
+                         c("model", "A_losses", "B_losses", "A_params", "cors"))
+
+  # doing cross validation on noise models
+  for (j in names(l.models)) {
+    # choosing the subset for this particular model
+    df.rearrangement = df.arrangement_A %>%
+      select(weight, l.models[[j]])
+    # find the best performing model in A
+    A_best = df.rearrangement %>%
+      summarize(across(.cols = contains(","),
+                       .fns = ~ weighted.mean(., weight))) %>%
+      pivot_longer(everything(),
+                   names_to = "parameters",
+                   values_to = "loss") %>%
+      arrange(loss) %>%
+      filter(row_number() == 1)
+
+    A_best_param = A_best["parameters"][[1]]
+    A_best_loss = A_best["loss"][[1]]
+
+    # calculate the loss of that model in B
+    B_loss = df.arrangement_B %>%
+      select(weight, param = any_of(A_best_param)) %>%
+      summarize(loss = weighted.mean(param, weight)) %>%
+      pull(loss)
+    
+    r_xval = df.summary.model %>% 
+      slice(ixs_B) %>% 
+      summarize(cor = cor(response, !!as.symbol(paste0("hsm_", A_best_param)))) %>% 
+      pull(cor)
+
+    df.losses_n[nrow(df.losses_n)+1,] = list(j, A_best_loss, B_loss, A_best_param, r_xval)
+    if (verbose) print(paste0(A_best_param, " | ", A_best_loss, " | ", B_loss))
+  }
+
+  # cross validation on features
+  df.arrangement_A = df.summary.features %>% slice(ixs_A)
+  df.arrangement_B = df.summary.features %>% slice(ixs_B)
+
+  # get the parameters of the features regression to A
+  A_fit = df.arrangement_A %>%
+    glm(response ~ . - exp - trial - index - weight, data = .,
+        weights = weight,
+        family = "binomial")
+
+  A_loss = df.arrangement_A %>%
+    mutate(regression = A_fit$fitted.values) %>%
+    summarize(loss = l2(response, regression, w = weight)) %>%
+    pull(loss)
+
+  # calculate the loss and corr on B based on the regression to A
+  df.B_info = df.arrangement_B %>%
+    mutate(regression = logit2prob(predict(A_fit, df.arrangement_B))) %>%
+    summarize(loss = l2(response, regression, w = weight), cor = cor(response, regression))
+  
+  B_loss = df.B_info %>% 
+    pull(loss)
+  r_xval = df.B_info %>% 
+    pull(cor)
+
+   # record the regressions for the features model
+  if (i == 1) {
+    df.xval_f_regressions = setNames(
+      data.frame(matrix(ncol = length(A_fit$coefficients) + 2, nrow = 0)),
+      c(names(A_fit$coefficients), "A_loss", "B_loss"))
+  }
+  df.xval_f_regressions[i, ] = c(A_fit$coefficients, "A_loss" = A_loss, "B_loss" = B_loss)
+
+  if (verbose) print(paste0("f", " | ", A_loss, " | ", B_loss))
+  df.losses_n[nrow(df.losses_n) + 1, ] = list("f", A_loss, B_loss, NA, r_xval)
+  
+  # cross validation on features^2
+  A_fit = df.arrangement_A %>%
+    glm(response ~ (. - exp - trial - index - weight)^2, data = .,
+        weights = weight,
+        family = "binomial")
+
+  A_loss = df.arrangement_A %>%
+    mutate(regression = A_fit$fitted.values) %>%
+    summarize(loss = l2(response, regression, w = weight)) %>%
+    pull(loss)
+
+  # calculate the loss and corr on B based on the regression to A
+  df.B_info = df.arrangement_B %>%
+    mutate(regression = logit2prob(predict(A_fit, df.arrangement_B))) %>%
+    summarize(loss = l2(response, regression, w = weight), cor = cor(response, regression))
+  
+  B_loss = df.B_info %>% 
+    pull(loss)
+  r_xval = df.B_info %>% 
+    pull(cor)
+
+  if (verbose) print(paste0("fsq", " | ", A_loss, " | ", B_loss))
+  df.losses_n[nrow(df.losses_n) + 1, ] = list("fsq", A_loss, B_loss, NA, r_xval)
+
+  df.losses = df.losses %>% bind_rows(df.losses_n)
+}
+
+df.losses = df.losses %>%
+  mutate(diffs = B_losses - A_losses)
+
+# save(df.losses, file = "cache/xval_losses.RData")
+```
+
+## Analyze xval
+
+```{r}
+# df.losses = df.losses %>%
+#   group_by(x = ceiling(row_number() / 9)) %>%
+#   filter(!any(is.nan(B_losses))) %>%
+#   ungroup()
+# 
+# n_notnan = nrow(df.losses) / 9
+
+df.losses = df.losses %>%
+  filter(model != "fsq")
+
+df.xval_params = df.losses %>%
+  group_by(model, A_params) %>% 
+  summarize(n = n(),
+            p5 = quantile(cors, .05),
+            p50 = mean(cors),
+            p95 = quantile(cors, .95)) %>% 
+  arrange(model, -n)
+
+xval_bestmodel = df.xval_params %>%
+  filter(model == "pid") %>%
+  filter(row_number() == 1) %>%
+  pull(A_params) %>%
+  paste0("hsm_", .)
+
+# mean, var of xval losses
+df.xval_rmses = df.losses %>%
+  group_by(model) %>%
+  summarize(across(c("A_losses", "B_losses", "diffs"),
+                   c("mean" = mean,
+                     "sd" = sd,
+                     p5 = ~quantile(., .05, na.rm=T),
+                     p50 = ~mean(., na.rm=T),
+                     p95 = ~quantile(., .95, na.rm=T)))) %>%
+  arrange(B_losses_mean) %>% 
+  mutate(across(contains('_'), ~.*100)) %>% 
+  select(model, contains("B_losses_p"), everything())
+
+# dif between xval losses and full HSM losses
+df.xval_rmse_difs = df.losses %>% 
+  select(model, B_losses) %>% 
+  group_by(x = ceiling(row_number() / 8)) %>%
+  pivot_wider(names_from = "model", values_from = "B_losses") %>% 
+  rename(xval_num = x) %>% 
+  ungroup() %>% 
+  mutate(across(c(everything(), -xval_num), ~ . - pid)) %>% 
+  summarize(across(c(everything(), -xval_num),
+                   c(p5 = ~quantile(., .05), p50 = ~mean(.), p95 = ~quantile(., .95)))) %>% 
+  mutate(across(everything(), ~.*100))
+
+# dif between xval losses and full HSM losses
+df.xval_corr_difs= df.losses %>% 
+  select(model, cors) %>% 
+  group_by(x = ceiling(row_number() / 8)) %>%
+  pivot_wider(names_from = "model", values_from = "cors") %>% 
+  rename(xval_num = x) %>% 
+  ungroup() %>% 
+  mutate(across(c(everything(), -xval_num), ~ pid - .)) %>% 
+  summarize(across(c(everything(), -xval_num),
+                   c(p5 = ~quantile(., .05), p50 = ~mean(.), p95 = ~quantile(., .95))))
+
+## xval correlations
+df.xval_corrs = df.xval_params %>% 
+  group_by(model) %>% 
+  filter(row_number() == 1) %>% 
+  ungroup()
+```
+
+## Plot xval
+
+```{r}
+ggplot(data = df.losses %>% filter(!is.nan(B_losses)),
+       mapping = aes(
+         x = model %>% reorder(B_losses),
+         y = B_losses
+       )) +
+  geom_point(alpha = 0.08,
+             color = "coral",
+             position = position_jitter(width = 0.02, height = 0),
+             size = 2) +
+  stat_summary(fun = ~ mean(.),
+               fun.min = ~ mean(.) - sd(.),
+               fun.max = ~ mean(.) + sd(.),
+               # fun.args = list(conf.int=.99),
+               geom = "pointrange",
+               shape = 21,
+               size = 1,
+               fill = "white",
+               color = "red") +
+  labs(x = "model", y = "cross validation loss")
+```
+
+
+# Responsibility regressions
+
+- regress prediction to responsibility, ONLY for experiments 1 and 2
+
+```{r}
+# isolate hsm and features predictions on exp/trial basis
+df.tmp = df.exp123.master %>% 
+  select(exp, trial, hsm = any_of(fit_bestmodel)) %>% 
+  mutate(features = df.exp123.regression$fit123) %>% 
+  group_by(exp, trial) %>% 
+  mutate(n_bricks = 1) %>% 
+  summarize(across(c(hsm, features, n_bricks), sum), .groups = "drop") %>% 
+  filter(exp < 3)
+
+# do regressions
+exp1.pr_regression = df.exp123.trials %>% 
+  filter(exp == 1) %>% 
+  mutate(p_mean = p_mean / n_bricks) %>% 
+  lm(r_mean ~ p_mean, data = .)
+
+exp2.pr_regression = df.exp123.trials %>% 
+  filter(exp == 2) %>% 
+  mutate(p_mean = p_mean / n_bricks) %>% 
+  lm(r_mean ~ p_mean, data = .)
+
+# predict regressions
+df.exp1.pr_regression = df.tmp %>% 
+  filter(exp == 1) %>% 
+  mutate(r_hsm = 
+           predict(exp1.pr_regression, 
+                   df.tmp %>% 
+                     filter(exp == 1) %>% 
+                     mutate(p_mean = hsm / n_bricks))) %>% 
+  mutate(r_features = 
+           predict(exp1.pr_regression, 
+                   df.tmp %>% 
+                     filter(exp == 1) %>% 
+                     mutate(p_mean = features / n_bricks))) %>% 
+  mutate(r_prediction_low = 
+           predict(exp1.pr_regression, 
+                   df.exp123.trials %>% 
+                     filter(exp == 1) %>% 
+                     mutate(p_mean = p_low / n_bricks))) %>% 
+  mutate(r_prediction_high =
+           predict(exp1.pr_regression, 
+                   df.exp123.trials %>% 
+                     filter(exp == 1) %>% 
+                     mutate(p_mean = p_high / n_bricks))) %>% 
+  mutate(r_prediction_mean = exp1.pr_regression$fitted.values)
+df.exp2.pr_regression = df.tmp %>% 
+  filter(exp == 2) %>% 
+  mutate(r_hsm =
+           predict(exp2.pr_regression, 
+                   df.tmp %>% 
+                     filter(exp == 2) %>% 
+                     mutate(p_mean = hsm / n_bricks))) %>% 
+  mutate(r_features =
+           predict(exp2.pr_regression, 
+                   df.tmp %>% 
+                     filter(exp == 2) %>% 
+                     mutate(p_mean = features / n_bricks))) %>% 
+  mutate(r_prediction_low = 
+           predict(exp2.pr_regression, 
+                   df.exp123.trials %>% 
+                     filter(exp == 2) %>% 
+                     mutate(p_mean = p_low / n_bricks))) %>% 
+  mutate(r_prediction_high =
+           predict(exp2.pr_regression, 
+                   df.exp123.trials %>% 
+                     filter(exp == 2) %>%
+                     mutate(p_mean = p_high / n_bricks))) %>% 
+  mutate(r_prediction_mean = exp2.pr_regression$fitted.values)
+
+# combine regressions
+df.exp12.pr_regression = bind_rows(
+  df.exp1.pr_regression,
+  df.exp2.pr_regression,
+  .id = "exp") %>% 
+  mutate(exp = as.numeric(exp)) %>% 
+  left_join(df.exp12.trials %>% 
+              select(exp, trial, r_mean, r_low, r_high, p_mean, p_low, p_high),
+              by = c("trial", "exp"))
+
+```
+
+# Model accuracy
+
+```{r, eval=F}
+df.exp123.master %>% 
+  select(exp, trial, response, fall, hsm = any_of(fit_bestmodel)) %>% 
+  mutate(acc = ifelse(fall == 0, 1 - hsm, hsm)) %>% 
+  group_by(exp) %>% 
+  summarize(mean(acc))
+
+df.exp123.master %>% 
+  select(exp, trial, response, fall, hsm = any_of(fit_bestmodel)) %>% 
+  mutate(acc = ifelse(fall == 0, 1 - hsm, hsm)) %>% 
+  group_by(fall, exp) %>% 
+  summarize(mean(acc))
+
+df.exp123.regression %>% 
+  select(exp, trial, response, features = fit123) %>% 
+  mutate(fall = df.exp123.master$fall) %>% 
+  mutate(acc = ifelse(fall == 0, 1 - features, features)) %>% 
+  group_by(exp) %>% 
+  summarize(mean(acc))
+
+df.exp123.regression %>% 
+  select(exp, trial, response, features = fit123) %>% 
+  mutate(fall = df.exp123.master$fall) %>% 
+  mutate(acc = ifelse(fall == 0, 1 - features, features)) %>% 
+  group_by(fall, exp) %>% 
+  summarize(mean(acc))
+```
+
+# Participant accuracy
+
+- check how accurate participants' selections are versus the ground truth
+- check how accurate participants' predictions are versus the ground truth
+
+```{r eval=F}
+# exp 1
+df.tmp = df.exp1.selection.brick %>%
+  left_join(df.exp1.info %>%
+              select(trial, index, fall),
+            by = c("trial", "index")) %>%
+  mutate(diff = abs(response - fall)) %>% 
+  group_by(trial, fall) %>% 
+  summarize(nred = n(),
+            acc = 1 - mean(diff),
+            pred_selection = mean(response),
+            pred_truth = mean(fall)) %>%
+  ungroup() %>% 
+  left_join(df.exp1.trials %>%
+              select(trial, pred_prediction = p_mean, pred_responsibility = r_mean),
+            by = "trial")
+
+weighted.mean(df.tmp$acc, df.tmp$nred) # participant accuracy vs ground truth
+weighted.mean(df.tmp[df.tmp$fall == 1,]$acc, df.tmp[df.tmp$fall == 1,]$nred) # accuracy for blocks that fall
+weighted.mean(df.tmp[df.tmp$fall == 0,]$acc, df.tmp[df.tmp$fall == 0,]$nred) # accuracy for blocks that don't
+cor(df.tmp %>% select(pred_selection, pred_prediction, pred_truth, pred_responsibility))
+
+# accuracy of selection vs prediction conditions
+df.tmp %>% 
+  filter(fall == 1) %>%
+  group_by(trial) %>% 
+  summarize(nbricks = sum(nred),
+            pred_selection = sum(nred * pred_selection),
+            pred_prediction = mean(pred_prediction),
+            pred_truth = nred) %>% 
+  summarize(sel_err = sum(l2(pred_selection, pred_truth)),
+            pred_err = sum(l2(pred_prediction, pred_truth)))
+
+# exp 2
+df.tmp = df.exp2.selection.brick %>%
+  left_join(df.exp2.info %>%
+              select(trial, index, fall),
+            by = c("trial", "index")) %>%
+  mutate(diff = abs(response - fall)) %>%
+  group_by(trial, fall) %>%
+  summarize(nred = n(),
+            acc = 1 - mean(diff),
+            pred_selection = mean(response),
+            pred_truth = mean(fall)) %>%
+  ungroup() %>%
+  left_join(df.exp1.trials %>%
+              select(trial, pred_prediction = p_mean, pred_responsibility = r_mean),
+            by = "trial")
+
+weighted.mean(df.tmp$acc, df.tmp$nred) # participant accuracy vs ground truth
+weighted.mean(df.tmp[df.tmp$fall == 1,]$acc, df.tmp[df.tmp$fall == 1,]$nred)
+weighted.mean(df.tmp[df.tmp$fall == 0,]$acc, df.tmp[df.tmp$fall == 0,]$nred)
+cor(df.tmp %>% select(pred_selection, pred_prediction, pred_truth, pred_responsibility))
+
+# exp 3
+df.exp3.trials %>% 
+  mutate(fall = as.numeric(fall) * 100) %>% 
+  summarize(100 - mean(abs(p_mean - fall)))
+
+```
+
+# Counting simulations
+
+## Using regressions
+
+```{r}
+fit_bestparams = strsplit(fit_bestmodel, '_')[[1]][[2]]
+
+df.tmp = read_json(paste0("simulations/exp1/perceptual,impulse-aligned,dynamics_",fit_bestparams,".json")) %>%
+  as.tbl_json %>%
+  gather_object("trial") %>%
+  gather_array("simulation") %>%
+  gather_array("number") %>%
+  append_values_number("index") %>%
+  mutate(trial = str_replace_all(trial, "trial_", ""),
+         trial = as.numeric(trial)) %>%
+  select(-document.id) %>% 
+  group_by(trial, simulation) %>% 
+  count(name="prediction") %>% 
+  group_by(trial, prediction) %>% 
+  count(name = "frequency")
+
+df.tmp2 = df.tmp %>% 
+  group_by(trial) %>% 
+  summarize(frequency = 200 - sum(frequency)) %>% 
+  mutate(prediction = 0) %>% 
+  select(trial, prediction, frequency) %>% 
+  bind_rows(df.tmp, .) %>% 
+  arrange(trial, prediction) %>% 
+  ungroup()
+
+df.tmp.sim_vars = df.tmp2 %>% 
+  group_by(trial) %>% 
+  summarize(sim = wtd.var(prediction, frequency))
+df.tmp.human_vars = df.exp1.prediction %>% 
+  group_by(trial) %>% 
+  summarize(human = var(response))
+
+df.tmp.vars1 = df.tmp.sim_vars %>% 
+  left_join(df.tmp.human_vars, by="trial")
+
+var_regression = df.tmp.vars1 %>% 
+  lm(human ~ sim, data = .)
+
+# summary(var_regression)
+
+```
+
+
+```{r}
+df.tmp = read_json(paste0("simulations/exp2/perceptual,impulse-aligned,dynamics_",fit_bestparams,".json")) %>%
+  as.tbl_json %>%
+  gather_object("trial") %>%
+  gather_array("simulation") %>%
+  gather_array("number") %>%
+  append_values_number("index") %>%
+  mutate(trial = str_replace_all(trial, "trial_", ""),
+         trial = as.numeric(trial)) %>%
+  select(-document.id) %>% 
+  group_by(trial, simulation) %>% 
+  count(name="prediction") %>% 
+  group_by(trial, prediction) %>% 
+  count(name = "frequency")
+
+df.tmp.template = tibble(trial = 1:42, prediction = 0, frequency = 0)
+df.tmp2 = df.tmp %>% 
+  full_join(df.tmp.template, by = c("trial", "prediction", "frequency")) %>% 
+  group_by(trial) %>% 
+  summarize(frequency = 200 - sum(frequency)) %>% 
+  mutate(prediction = 0) %>% 
+  select(trial, prediction, frequency) %>% 
+  bind_rows(df.tmp, .) %>% 
+  arrange(trial, prediction) %>% 
+  ungroup()
+
+df.tmp.sim_vars = df.tmp2 %>% 
+  group_by(trial) %>% 
+  summarize(sim = wtd.var(prediction, frequency))
+df.tmp.human_vars = df.exp2.prediction %>% 
+  group_by(trial) %>% 
+  summarize(human = var(response))
+
+df.tmp.vars2 = df.tmp.sim_vars %>% 
+  left_join(df.tmp.human_vars, by="trial")
+
+var_regression = df.tmp.vars2 %>% 
+  lm(human ~ sim, data = .)
+
+# summary(var_regression)
+
+```
+
+```{r}
+df.tmp.vars12 = df.tmp.vars1 %>% 
+  mutate(exp = 1) %>% 
+  rbind(df.tmp.vars2 %>% mutate(exp = 2))
+
+var_regression = df.tmp.vars12 %>% 
+  lm(human ~ sim, data = .)
+
+# summary(var_regression)
+```
+
+## Plotting
+
+```{r}
+plot.exp1.vars = ggplot(df.tmp.vars1, aes(sim, human)) +
+  geom_point(size = 3, color='black', alpha=.8) +
+  geom_abline(aes(intercept = 0, slope = 1, color='#00A9FF'), linetype='dashed', size=1) +
+  geom_abline(aes(intercept = 0, slope = .5, color='#CD9600'), linetype='dashed', size=1) +
+  geom_abline(aes(intercept = 0, slope = .25, color='#F8766D'), linetype='dashed', size=1) +
+  geom_smooth(method='lm', color='black', alpha=0, fullrange=T, size=1.5) +
+  scale_x_continuous(limits = c(0, 10), expand=c(.05,0)) +
+  scale_y_continuous(limits = c(0, 20), expand=c(.05,0)) +
+  annotate(geom = "text", x=0,y=Inf,
+           label = paste0("k = 0.70"),
+           hjust = 0, vjust = 1, size = 8) +
+  annotate(geom = "text", x=0,y=Inf,
+           label = "v = 1.47",
+           hjust = 0, vjust = 2.5, size = 8) +
+  labs(x = "variances (CSM)",
+       y = "variances (human)",
+       title = "Experiment 1",
+       tag = "a)") +
+  theme(legend.position = c(.9, .2),
+        legend.title = element_blank(),
+        legend.background = element_rect(colour = "black"),
+        plot.title = element_text(face="bold")) +
+  scale_color_identity(labels=c("k=1","k=2","k=4"), guide="legend")
+
+plot.exp2.vars = ggplot(df.tmp.vars2, aes(sim, human)) +
+  geom_point(size = 3, color='black', alpha=.8) +
+  geom_abline(intercept = 0, slope = 1, color='#00A9FF', linetype='dashed', size=1) +
+  geom_abline(intercept = 0, slope = .5, color='#CD9600', linetype='dashed', size=1) +
+  geom_abline(intercept = 0, slope = .25, color='#F8766D', linetype='dashed', size=1) +
+  geom_smooth(method='lm', color='black', alpha=0, fullrange=T, size=1.5) +
+  scale_x_continuous(limits = c(0, 10), expand=c(.05,0)) +
+  scale_y_continuous(limits = c(0, 20), expand=c(.05,0)) +
+  annotate(geom = "text", x=0,y=Inf,
+           label = paste0("k = 1.39"),
+           hjust = 0, vjust = 1, size = 8) +
+  annotate(geom = "text", x=0,y=Inf,
+           label = "v = 2.90",
+           hjust = 0, vjust = 2.5, size = 8) +
+  labs(x = "variances (CSM)",
+       y = "variances (human)",
+       title = "Experiment 2",
+       tag = "b)") +
+  theme(plot.title = element_text(face="bold"))
+
+plot.exp12.vars = ggplot(df.tmp.vars12, aes(sim, human)) +
+  geom_point(size = 3, color='black', alpha=.8) +
+  geom_abline(intercept = 0, slope = 1, color='#00A9FF', linetype='dashed', size=1) +
+  geom_abline(intercept = 0, slope = .5, color='#CD9600', linetype='dashed', size=1) +
+  geom_abline(intercept = 0, slope = .25, color='#F8766D', linetype='dashed', size=1) +
+  geom_smooth(method='lm', color='black', alpha=0, fullrange=T, size=1.5) +
+  scale_x_continuous(limits = c(0, 10), expand=c(.05,0), breaks=seq(0,10,2)) +
+  scale_y_continuous(limits = c(0, 20), expand=c(.05,0)) +
+  annotate(geom = "text", x=0,y=Inf,
+           label = paste0("k = 1.00"),
+           hjust = 0, vjust = 1, size = 8) +
+  annotate(geom = "text", x=0,y=Inf,
+           label = "v = 2.27",
+           hjust = 0, vjust = 2.5, size = 8) +
+  labs(x = "variances (CSM)",
+       y = "variances (human)",
+       title = "Experiments 1 & 2") +
+  theme(plot.title = element_text(face="bold"))
+
+plot.exp1.vars | plot.exp2.vars
+
+# plot.exp12.vars
+
+# ggsave("../../figures/plots/variances.pdf", width = 12, height = 5)
+```
+
+# Error correlations
+
+## Experiment 1
+
+```{r}
+df.plot = df.exp1.pr_regression %>% 
+  select(trial,
+         p_hsm = hsm, r_hsm = r_hsm,
+         p_features = features, r_features = r_features,
+         r_human = r_prediction_mean) %>% 
+  left_join(df.exp1.trials %>% 
+              select(trial, p_human = p_mean,
+                     p_human_high = p_high,
+                     p_human_low = p_low), by = "trial") %>% 
+  left_join(df.exp1.info %>% 
+              group_by(trial) %>% 
+              summarize(p_truth = sum(fall)),
+            by = "trial") %>% 
+  mutate(error_p_hsm = p_hsm - p_truth,
+         error_p_feat = p_features - p_truth,
+         error_p_human = p_human - p_truth)
+
+plot.exp1.errors_hsm = ggplot(df.plot, aes(x = error_p_hsm, y = error_p_human)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  geom_hline(yintercept = 0, linetype=3, alpha=.6) +
+  geom_vline(xintercept = 0, linetype=3, alpha=.6) +
+  geom_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_point(size = 2, color='black') +
+  annotate(geom = "text",
+           label = str_c("r = ", cor(df.plot$error_p_hsm, df.plot$error_p_human) %>% round(2)),
+           x = -3, y = Inf, hjust = 0, vjust = 1.5, size = 8) +
+  annotate(geom = "text",
+           label = str_c("RMSE = ", rmse(df.plot$error_p_hsm, df.plot$error_p_human) %>% round(2)),
+           x = -3, y = Inf, hjust = 0, vjust = 3, size = 8) +
+  labs(title = "Experiment 1", x = "prediction error (CSM)", y = "prediction error (human)") +
+  scale_x_continuous(breaks = seq(-3, 6, 1), labels = seq(-3, 6, 1),  limits = c(-3, 7)) +
+  scale_y_continuous(breaks = seq(-3, 6, 1), labels = seq(-3, 6, 1), limits = c(-3, 7)) +
+  theme(text = element_text(size = 20),
+        panel.grid = element_blank(),
+        plot.title = element_text(face = "bold"),
+        axis.title.x = element_text(margin = margin(t = 10)),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+plot.exp1.errors_feat = ggplot(df.plot, aes(x = error_p_feat, y = error_p_human)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  geom_hline(yintercept = 0, linetype=3, alpha=.6) +
+  geom_vline(xintercept = 0, linetype=3, alpha=.6) +
+  geom_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_point(size = 2, color='black') +
+  annotate(geom = "text",
+           label = str_c("r = ", cor(df.plot$error_p_feat, df.plot$error_p_human) %>% round(2)),
+           x = -3, y = Inf, hjust = 0, vjust = 1.5, size = 8) +
+  annotate(geom = "text",
+           label = str_c("RMSE = ", rmse(df.plot$error_p_feat, df.plot$error_p_human) %>% round(2)),
+           x = -3, y = Inf, hjust = 0, vjust = 3, size = 8) +
+  labs(x = "prediction error (features)", y = "prediction error (human)") +
+  scale_x_continuous(breaks = seq(-3, 6, 1), labels = seq(-3, 6, 1),  limits = c(-3, 7)) +
+  scale_y_continuous(breaks = seq(-3, 6, 1), labels = seq(-3, 6, 1), limits = c(-3, 7)) +
+  theme(text = element_text(size = 20),
+        panel.grid = element_blank(),
+        plot.title = element_text(face = "bold"),
+        axis.title.x = element_text(margin = margin(t = 10)),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+df.plot1 = df.plot
+
+```
+
+## Experiment 2
+
+```{r}
+df.plot = df.exp2.pr_regression %>% 
+  select(trial,
+         p_hsm = hsm, r_hsm = r_hsm,
+         p_features = features, r_features = r_features,
+         r_human = r_prediction_mean) %>% 
+  left_join(df.exp2.trials %>% 
+              select(trial, p_human = p_mean,
+                     p_human_high = p_high,
+                     p_human_low = p_low), by = "trial") %>% 
+  left_join(df.exp2.info %>% 
+              group_by(trial) %>% 
+              summarize(p_truth = sum(fall)),
+            by = "trial") %>% 
+  mutate(error_p_hsm = p_hsm - p_truth,
+         error_p_feat = p_features - p_truth,
+         error_p_human = p_human - p_truth)
+
+plot.exp2.errors_feat = ggplot(df.plot, aes(x = error_p_feat, y = error_p_human)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  geom_hline(yintercept = 0, linetype=3, alpha=.6) +
+  geom_vline(xintercept = 0, linetype=3, alpha=.6) +
+  geom_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_point(size = 2, color='black') +
+  annotate(geom = "text",
+           label = str_c("r = ", cor(df.plot$error_p_feat, df.plot$error_p_human) %>% round(2)),
+           x = -3, y = Inf, hjust = 0, vjust = 1.5, size = 8) +
+  annotate(geom = "text",
+           label = str_c("RMSE = ", rmse(df.plot$error_p_feat, df.plot$error_p_human) %>% round(2)),
+           x = -3, y = Inf, hjust = 0, vjust = 3, size = 8) +
+  labs(x = "prediction error (features)", y = element_blank()) +
+  scale_x_continuous(breaks = seq(-3, 6, 1), labels = seq(-3, 6, 1),  limits = c(-3, 7)) +
+  scale_y_continuous(breaks = seq(-3, 6, 1), labels = seq(-3, 6, 1), limits = c(-3, 7)) +
+  theme(text = element_text(size = 20),
+        panel.grid = element_blank(),
+        axis.title.x = element_text(margin = margin(t = 10)),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+plot.exp2.errors_hsm = ggplot(df.plot, aes(x = error_p_hsm, y = error_p_human)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  geom_hline(yintercept = 0, linetype=3, alpha=.6) +
+  geom_vline(xintercept = 0, linetype=3, alpha=.6) +
+  geom_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_point(size = 2, color='black') +
+  annotate(geom = "text",
+           label = str_c("r = ", cor(df.plot$error_p_hsm, df.plot$error_p_human) %>% round(2)),
+           x = -3, y = Inf, hjust = 0, vjust = 1.5, size = 8) +
+  annotate(geom = "text",
+           label = str_c("RMSE = ", rmse(df.plot$error_p_hsm, df.plot$error_p_human) %>% round(2)),
+           x = -3, y = Inf, hjust = 0, vjust = 3, size = 8) +
+  labs(title = "Experiment 2", x = "prediction error (CSM)", y = element_blank()) +
+  scale_x_continuous(breaks = seq(-3, 6, 1), labels = seq(-3, 6, 1),  limits = c(-3, 7)) +
+  scale_y_continuous(breaks = seq(-3, 6, 1), labels = seq(-3, 6, 1), limits = c(-3, 7)) +
+  theme(text = element_text(size = 20),
+        panel.grid = element_blank(),
+        plot.title = element_text(face = "bold"),
+        axis.title.x = element_text(margin = margin(t = 10)),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+df.plot2 = df.plot
+```
+
+
+```{r}
+
+(plot.exp1.errors_hsm + plot.exp2.errors_hsm) / 
+  (plot.exp1.errors_feat + plot.exp2.errors_feat)
+
+# ggsave("../../figures/plots/error_corrs.pdf", width = 10, height = 10)
+```
+
+
+# Full regression
+
+- include CSM in the regression
+
+```{r}
+df.tmp.feat_hsm = df.exp123.selection %>% 
+  left_join(df.exp123.features, by = c("exp", "trial", "index")) %>% 
+  left_join(df.exp123.master %>% select(exp, trial, index, hsm = any_of(fit_bestmodel)),
+            by = c("exp", "trial", "index"))
+
+tmp1 = df.tmp.feat_hsm %>% 
+  filter(exp == 1) %>% 
+  glm(response ~ . - exp - trial - index, data = ., family = "binomial")
+tmp2 = df.tmp.feat_hsm %>% 
+  filter(exp == 2) %>% 
+  glm(response ~ . - exp - trial - index, data = ., family = "binomial")
+tmp12 = df.tmp.feat_hsm %>% 
+  filter(exp == 1 | exp == 2) %>% 
+  glm(response ~ . - exp - trial - index, data = ., family = "binomial")
+tmp123 = df.tmp.feat_hsm %>% 
+  glm(response ~ . - exp - trial - index, data = ., family = "binomial")
+
+regression_all_best = tmp123
+
+df.exp123.regression_all = df.tmp.feat_hsm %>% 
+  mutate(fit1 = logit2prob(predict(tmp1, df.tmp.feat_hsm))) %>% 
+  mutate(fit2 = logit2prob(predict(tmp2, df.tmp.feat_hsm))) %>% 
+  mutate(fit12 = logit2prob(predict(tmp12, df.tmp.feat_hsm))) %>% 
+  mutate(fit123 = logit2prob(predict(tmp123, df.tmp.feat_hsm)))
+
+# correlations for all bricks, regardless of experiment
+df.tmp = df.exp123.regression_all %>% 
+  select(response, fit1, fit2, fit12, fit123) %>% 
+  corrr::correlate(quiet=T) %>% 
+  select(response) %>% 
+  filter(row_number() != 1)
+
+# experiment-specific correlations
+df.r_features_all = df.exp123.regression_all %>% 
+  select(exp, response, fit1, fit2, fit12, fit123) %>% 
+  nest_by(exp) %>% 
+  summarize(corrr::correlate(data, quiet=T)) %>% 
+  filter(row_number() == 1) %>% 
+  pivot_longer(contains("fit"), names_to = "params", values_to = "vals") %>% 
+  pivot_wider(names_from = exp, values_from = vals) %>% 
+  mutate("fit" = c("f-hsm:1", "f-hsm:2", "f-hsm:1,2", "f-hsm:1,2,3")) %>% 
+  select(fit, exp1 = "1", exp2 = "2", exp3 = "3", -term, -response) %>% 
+  mutate("all" = df.tmp$response)
+
+bind_rows(df.r_model, df.r_features, df.r_features_all)
+
+# summary(regression_all_best)
+
+```
+
+
+# Noise parameters
+
+```{r}
+df.tmp = df.exp123.bestmodels %>% 
+  separate(modelname, c("hsm", "params"), sep="_") %>% 
+  separate(params, c("perceptual", "intervention", "dynamics")) %>% 
+  select(-hsm) %>% 
+  mutate(across(c("perceptual", "intervention", "dynamics"), as.numeric))
+  
+df.tile_pi = df.tmp %>% 
+  group_by(perceptual, intervention) %>% 
+  summarize(loss = mean(value))
+
+plot.tile_pi = ggplot(data = df.tile_pi,
+       mapping = aes(x = perceptual, y = intervention)) +
+  geom_tile(aes(fill = loss),
+            color = "black") +
+  scale_fill_gradient(low = "white", high = "black", limits=c(.4,.8), breaks=c(.40,.80), labels=c("0.40", "0.80")) + 
+  coord_cartesian(expand = F) +
+  scale_x_continuous(breaks = seq(0, 10, 1)) +
+  scale_y_continuous(breaks = seq(0, 10, 1)) +
+  labs(x = "perceptual noise",
+       y = "intervention noise")
+
+df.tile_pd = df.tmp %>% 
+  group_by(perceptual, dynamics) %>% 
+  summarize(loss = mean(value))
+plot.tile_pd = ggplot(data = df.tile_pd,
+       mapping = aes(x = perceptual, y = dynamics)) +
+  geom_tile(aes(fill = loss),
+            color = "black") +
+  scale_fill_gradient(low = "white", high = "black", limits=c(.429,.51), breaks=c(.43,.51)) + 
+  coord_cartesian(expand = F) +
+  scale_x_continuous(breaks = seq(0, 10, 1)) +
+  scale_y_continuous(breaks = seq(0, 10, 1)) +
+  labs(x = "perceptual noise",
+       y = "dynamics noise")
+
+df.tile_id = df.tmp %>% 
+  group_by(intervention, dynamics) %>% 
+  summarize(loss = mean(value))
+plot.tile_id = ggplot(data = df.tile_id,
+       mapping = aes(x = intervention, y = dynamics)) +
+  geom_tile(aes(fill = loss),
+            color = "black") +
+  scale_fill_gradient(low = "white", high = "black", limits=c(.419,.54), breaks=c(.42,.54)) + 
+  coord_cartesian(expand = F) +
+  scale_x_continuous(breaks = seq(0, 10, 1)) +
+  scale_y_continuous(breaks = seq(0, 10, 1)) +
+  labs(x = "intervention noise",
+       y = "dynamics noise")
+
+plot.tile_pi | plot.tile_pd | plot.tile_id +
+  plot_annotation(tag_levels = 'a', tag_suffix = ')') &
+  theme(plot.tag = element_text(face='bold'))
+
+# ggsave("../../figures/plots/sensitivity_analysis.pdf", width = 14, height = 3.5)
+```
+
+
+# AIC/BIC
+
+```{r, eval=F}
+# CSM
+n = nrow(df.exp123.master)
+k = 1
+sum_nll = (df.exp123.bestmodels %>% filter(modelname == fit_bestmodel) %>% pull(value)) * n
+2 * k + 2 * sum_nll # AIC
+log(n) * k + 2 * sum_nll # BIC
+
+# features model
+sum_nll = df.exp123.regression %>% 
+  select(response, fit123) %>% 
+  summarize(val = nll(response, fit123)) %>% 
+  pull(val) * n
+
+k = 13
+2 * k + 2 * sum_nll
+log(n) * k + 2 * sum_nll
+```
+
+# Fit to responsibility
+
+## Basic fit
+
+```{r, eval=F}
+df.tmp.features = df.exp123.features %>% 
+  select(exp, trial, contains("s."), contains("b.")) %>% 
+  group_by(trial, exp) %>% 
+  filter(row_number() == 1) %>% 
+  ungroup() %>% 
+  left_join(df.exp123.trials %>% 
+              select(exp,trial,r_mean, r_low, r_high),
+            by = c("exp", "trial")) %>% 
+  filter(exp != 3)
+
+tmp12 = df.tmp.features %>% 
+  lm(r_mean ~ . - exp - trial - r_low - r_high, data = .)
+
+df.exp12.regression_resp = df.tmp.features %>% 
+  mutate(fit12 = predict(tmp12, df.tmp.features))
+
+cor(df.exp12.regression_resp$fit12, df.exp12.regression_resp$r_mean)
+# cor(df.exp12.pr_regression$r_hsm, df.exp12.pr_regression$r_mean)
+
+rmse(df.exp12.regression_resp$fit12, df.exp12.regression_resp$r_mean)
+# rmse(df.exp12.pr_regression$r_hsm, df.exp12.pr_regression$r_mean)
+
+# hsm
+df.tmp.hsm = df.exp123.master %>% 
+  filter(exp != 3) %>% 
+  group_by(exp, trial) %>% 
+  summarize(across(c(response, contains("hsm")), mean), .groups="drop") %>% 
+  rename_with(.fn = ~ str_remove(., "hsm_")) %>%
+  left_join(df.exp12.trials %>% select(exp, trial, r_mean, r_low, r_high)) %>% 
+  select(exp, trial, contains("r_"), everything(), -response)
+
+sel_resp_fit = df.tmp.hsm %>% 
+  select(exp, trial, contains("r_"), selection_hsm = any_of("2,5,5")) %>% 
+  lm(r_mean ~ selection_hsm, data = .)
+
+df.tmp = df.tmp.hsm %>% 
+  select(exp, trial, contains("r_"), selection_hsm = any_of("2,5,5")) %>% 
+  mutate(hsm_mean = predict(sel_resp_fit, .))
+
+cor(df.tmp$r_mean, df.tmp$hsm_mean)
+rmse(df.tmp$hsm_mean, df.tmp$r_mean)
+
+```
+
+```{r, eval=F}
+plot.sel_resp_hsm = ggplot(df.tmp, aes(hsm_mean, r_mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  geom_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbar(aes(ymin = r_low, ymax = r_high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  annotate(geom = "text", 
+           label = str_c("r = ", cor(df.tmp$hsm_mean, df.tmp$r_mean) %>% round(2)), 
+           x = .2, y = Inf, hjust = 0, vjust = 1.5, size = 8) +
+  annotate(geom = "text",
+           label = str_c("RMSE = ", rmse(df.tmp$hsm_mean, df.tmp$r_mean) %>% round(2)), 
+           x = .2, y = Inf, hjust = 0, vjust = 3, size = 8) +
+  annotate(geom = "text",
+           label = "", x = 0, y = 0, hjust = 0) +
+  labs(title = "", 
+       x = "CSM", 
+       y = "responsibility condition") +
+  scale_x_continuous(breaks = seq(0, 100, 25), labels = seq(0, 100, 25), limits = c(0, 100)) +
+  scale_y_continuous(breaks = seq(0, 100, 25), labels = seq(0, 100, 25), limits = c(0, 100)) +
+  theme(text = element_text(size = 20),
+        plot.title = element_text(face = "bold"),
+        panel.grid = element_blank())
+
+plot.sel_resp_feat = ggplot(df.exp12.regression_resp, aes(fit12, r_mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  geom_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbar(aes(ymin = r_low, ymax = r_high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  annotate(geom = "text", 
+           label = str_c("r = ", cor(df.exp12.regression_resp$fit12, df.exp12.regression_resp$r_mean) %>% round(2)), 
+           x = .2, y = Inf, hjust = 0, vjust = 1.5, size = 8) +
+  annotate(geom = "text",
+           label = str_c("RMSE = ", rmse(df.exp12.regression_resp$fit12, df.exp12.regression_resp$r_mean) %>% round(2)), 
+           x = .2, y = Inf, hjust = 0, vjust = 3, size = 8) +
+  annotate(geom = "text",
+           label = "", x = 0, y = 0, hjust = 0) +
+  labs(title = "", 
+       x = "features model", 
+       y = "responsibility condition") +
+  scale_x_continuous(breaks = seq(0, 100, 25), labels = seq(0, 100, 25), limits = c(0, 100)) +
+  scale_y_continuous(breaks = seq(0, 100, 25), labels = seq(0, 100, 25), limits = c(0, 100)) +
+  theme(text = element_text(size = 20),
+        plot.title = element_text(face = "bold"),
+        panel.grid = element_blank())
+
+plot.sel_resp_hsm + plot.sel_resp_feat +
+  plot_annotation(tag_levels = "a", tag_suffix = ")") &
+  theme(plot.tag = element_text(face = 'bold'))
+
+# ggsave("../../figures/plots/selection_responsibility.pdf",width = 10,height = 5)
+
+```
+
+
+## Run xval
+
+```{r}
+load("cache/xval_losses_resp.RData")
+```
+
+
+```{r eval=F, warning=F}
+df.cross_val_resp =
+  setNames(data.frame(matrix(ncol = 5, nrow = 0), stringsAsFactors = FALSE),
+           c("model", "A_losses_mean", "B_losses_mean", "A_losses_sd", "B_losses_sd"))
+df.losses_resp =
+  data.frame("model" = character(),
+             "A_params" = character(),
+             "A_fit" = list(),
+             "A_losses" = double(),
+             "B_losses" = double(),
+             "cors" = double(),
+             stringsAsFactors = F)
+
+l.full_sci = colnames(df.tmp.hsm %>%
+                        select(-exp, -trial, -contains("r_")))
+
+n = 200
+n_total = nrow(df.tmp.hsm)
+
+for (i in 1:n) {
+  # don't have to worry about specialized exp1/exp2 selection
+  order = sample(1:n_total)
+  ixs_A = order[1:ceiling(n_total / 2)]
+  ixs_B = order[ceiling(n_total / 2):n_total]
+
+  df.arrangement_A = df.tmp.hsm %>% slice(ixs_A)
+  df.arrangement_B = df.tmp.hsm %>% slice(ixs_B)
+
+  df.losses_n = setNames(data.frame(matrix(ncol = 6, nrow = 0)),
+                         c("model", "A_params", "A_fit", "A_losses", "B_losses", "cors"))
+  
+  # find the best performing model in A
+  A_best = df.arrangement_A %>%
+    select(-exp, -trial, -r_low, -r_high) %>% 
+    pivot_longer(contains(","), names_to = "model", values_to = "selection") %>% 
+    nest(data = -model) %>% 
+    mutate(fit = map(data, ~lm(r_mean ~ selection, data = .x))) %>% 
+    mutate(pred  = map2(fit, data, ~mutate(.y, pred = predict(object = .x, newdata = .y)))) %>% 
+    select(-data) %>% 
+    unnest(pred) %>% 
+    group_by(model, fit) %>% 
+    summarize(loss = rmse(r_mean, pred), .groups="drop") %>% 
+    arrange(loss) %>% 
+    filter(row_number() == 1)
+  
+  A_best_fit = A_best["fit"][[1]]
+  A_best_param = A_best["model"][[1]]
+  A_best_loss = A_best["loss"][[1]]
+
+  # calculate the loss of that model in B
+  B_best = df.arrangement_B %>%
+    select(r_mean, selection = any_of(A_best_param)) %>% 
+    mutate(pred = predict(A_best_fit[[1]], .))
+    
+  B_loss = rmse(B_best$pred, B_best$r_mean)
+  r_xval = cor(B_best$pred, B_best$r_mean)
+  df.losses_n[nrow(df.losses_n)+1,] = list("hsm", A_best_param, list(A_best_fit[[1]]$coefficients), A_best_loss, B_loss, r_xval)
+
+  # cross validation on features
+  df.arrangement_A = df.tmp.features %>% slice(ixs_A)
+  df.arrangement_B = df.tmp.features %>% slice(ixs_B)
+
+  # get the parameters of the features regression to A
+  A_fit = df.arrangement_A %>%
+    lm(r_mean ~ . - exp - trial - r_low - r_high, data = .)
+
+  A_loss = df.arrangement_A %>%
+    mutate(regression = A_fit$fitted.values) %>%
+    summarize(loss = rmse(r_mean, regression)) %>%
+    pull(loss)
+
+  # calculate the loss and corr on B based on the regression to A
+  df.B_info = df.arrangement_B %>%
+    mutate(regression = predict(A_fit, .)) %>%
+    summarize(loss = rmse(r_mean, regression), cor = cor(r_mean, regression))
+  
+  B_loss = df.B_info %>% 
+    pull(loss)
+  r_xval = df.B_info %>% 
+    pull(cor)
+
+  df.losses_n[nrow(df.losses_n) + 1, ] = list("f", NA, NA, A_loss, B_loss, r_xval)
+  df.losses_resp = df.losses_resp %>% bind_rows(df.losses_n)
+}
+
+df.losses_resp = df.losses_resp %>%
+  mutate(diffs = B_losses - A_losses)
+
+# save(df.losses_resp, file = "cache/xval_losses_resp.RData")
+
+```
+
+## Analyze xval
+
+```{r, eval=F}
+df.xval_params = df.losses_resp %>%
+  group_by(model, A_params) %>% 
+  summarize(n = n(),
+            p5 = quantile(cors, .05),
+            p50 = mean(cors),
+            p95 = quantile(cors, .95)) %>% 
+  arrange(model, -n)
+
+xval_bestmodel = df.xval_params %>% 
+  filter(model == "hsm") %>% 
+  filter(row_number() == 1) %>%
+  pull(A_params) %>%
+  paste0("hsm_", .)
+
+# mean, var of xval losses
+df.xval_rmses = df.losses_resp %>%
+  group_by(model) %>%
+  summarize(across(c("A_losses", "B_losses", "diffs"),
+                   c(p5 = ~quantile(., .05),
+                     p50 = ~mean(.),
+                     p95 = ~quantile(., .95))))
+
+# dif between xval losses and full HSM losses
+df.xval_rmse_difs = df.losses_resp %>% 
+  select(model, B_losses) %>% 
+  group_by(x = ceiling(row_number() / 2)) %>%
+  pivot_wider(names_from = "model", values_from = "B_losses") %>% 
+  rename(xval_num = x) %>% 
+  ungroup() %>% 
+  mutate(across(c(everything(), -xval_num), ~ . - hsm)) %>% 
+  summarize(across(c(everything(), -xval_num),
+                   c(p5 = ~quantile(., .05), p50 = ~mean(.), p95 = ~quantile(., .95))))
+
+# dif between xval losses and full HSM losses
+df.xval_corr_difs= df.losses_resp %>% 
+  select(model, cors) %>% 
+  group_by(x = ceiling(row_number() / 2)) %>%
+  pivot_wider(names_from = "model", values_from = "cors") %>% 
+  rename(xval_num = x) %>% 
+  ungroup() %>% 
+  mutate(across(c(everything(), -xval_num), ~ hsm - .)) %>% 
+  summarize(across(c(everything(), -xval_num),
+                   c(p5 = ~quantile(., .05), p50 = ~mean(.), p95 = ~quantile(., .95))))
+
+## xval correlations
+df.xval_corrs = df.xval_params %>% 
+  group_by(model) %>% 
+  filter(row_number() == 1) %>% 
+  ungroup()
+```
+
+## Plot xval
+
+```{r}
+ggplot(data = df.losses_resp %>% filter(!is.nan(B_losses)),
+       mapping = aes(
+         x = model %>% reorder(B_losses),
+         y = B_losses
+       )) +
+  geom_point(alpha = 0.08,
+             color = "coral",
+             position = position_jitter(width = 0.02, height = 0),
+             size = 2) +
+  stat_summary(fun = ~ mean(.),
+               fun.min = ~ mean(.) - sd(.),
+               fun.max = ~ mean(.) + sd(.),
+               # fun.args = list(conf.int=.99),
+               geom = "pointrange",
+               shape = 21,
+               size = 1,
+               fill = "white",
+               color = "red") +
+  labs(x = "model", y = "cross validation loss")
+
+ggplot(data = df.losses_resp %>% filter(!is.nan(cors)),
+       mapping = aes(
+         x = model %>% reorder(cors),
+         y = cors
+       )) +
+  geom_point(alpha = 0.08,
+             color = "coral",
+             position = position_jitter(width = 0.02, height = 0),
+             size = 2) +
+  stat_summary(fun = ~ mean(.),
+               fun.min = ~ mean(.) - sd(.),
+               fun.max = ~ mean(.) + sd(.),
+               geom = "pointrange",
+               shape = 21,
+               size = 1,
+               fill = "white",
+               color = "red") +
+  labs(x = "model", y = "correlation coefficient")
+```
+
+## Exp 3
+
+```{r, eval=F}
+df.tmp.features = df.exp123.features %>% 
+  filter(exp == 3) %>% 
+  select(-o.black_pile, -exp) %>% 
+  left_join(df.exp3.trials %>% 
+              select(trial,r_mean, r_low, r_high),
+            by = "trial")
+
+tmp3 = df.tmp.features %>% 
+  lm(r_mean ~ . - trial - r_low - r_high, data = .)
+
+df.exp3.regression_resp = df.tmp.features %>% 
+  mutate(fit3 = predict(tmp3, df.tmp.features))
+
+cor(df.exp3.regression_resp$fit3, df.exp3.regression_resp$r_mean)
+rmse(df.exp3.regression_resp$fit3, df.exp3.regression_resp$r_mean)
+
+# hsm
+df.tmp.hsm = df.exp123.master %>% 
+  filter(exp == 3) %>% 
+  select(-exp, -w) %>% 
+  rename_with(.fn = ~ str_remove(., "hsm_")) %>%
+  left_join(df.exp3.trials %>% select(trial, r_mean, r_low, r_high)) %>% 
+  select(trial, contains("r_"), everything(), -response, -fall, -index)
+
+df.tmp.hsm_losses = df.tmp.hsm %>% 
+  mutate(across(contains(","), ~(.*100 - r_mean)^2))
+
+df.tmp = df.tmp.hsm %>% 
+  select(trial, contains("r_"), hsm = any_of("2,5,4")) %>% 
+  mutate(hsm = hsm * 100)
+
+cor(df.tmp$r_mean, df.tmp$hsm)
+rmse(df.tmp$hsm, df.tmp$r_mean)
+```
+
+
+```{r}
+load("cache/xval_losses_resp3.RData")
+```
+
+```{r, eval=F}
+df.cross_val_resp =
+  setNames(data.frame(matrix(ncol = 5, nrow = 0), stringsAsFactors = FALSE),
+           c("model", "A_losses_mean", "B_losses_mean", "A_losses_sd", "B_losses_sd"))
+df.losses_resp =
+  data.frame("model" = character(),
+             "A_params" = character(),
+             "A_losses" = double(),
+             "B_losses" = double(),
+             "cors" = double(),
+             stringsAsFactors = F)
+
+l.full_sci = colnames(df.tmp.hsm %>%
+                        select(-trial, -contains("r_")))
+
+n = 200
+n_total = nrow(df.tmp.hsm_losses)
+
+for (i in 1:n) {
+  # don't have to worry about specialized exp1/exp2 selection
+  order = sample(1:n_total)
+  ixs_A = order[1:ceiling(n_total / 2)]
+  ixs_B = order[ceiling(n_total / 2):n_total]
+
+  df.arrangement_A = df.tmp.hsm_losses %>% slice(ixs_A)
+  df.arrangement_B = df.tmp.hsm_losses %>% slice(ixs_B)
+
+  df.losses_n = setNames(data.frame(matrix(ncol = 5, nrow = 0)),
+                         c("model", "A_params", "A_losses", "B_losses", "cors"))
+  
+  # find the best performing model in A
+  
+  A_best = df.arrangement_A %>%
+    summarize(across(.cols = contains(","),
+                     .fns = ~ sqrt(mean(.)))) %>%
+    pivot_longer(everything(),
+                 names_to = "parameters",
+                 values_to = "loss") %>%
+    arrange(loss) %>%
+    filter(row_number() == 1)
+  
+  A_best_param = A_best["parameters"][[1]]
+  A_best_loss = A_best["loss"][[1]]
+
+  # calculate the loss of that model in B
+  B_best = df.arrangement_B %>%
+    select(r_mean, pred = any_of(A_best_param))
+    
+  B_loss = sqrt(mean(B_best$pred))
+  r_xval = df.tmp.hsm %>% 
+      slice(ixs_B) %>% 
+      summarize(cor = cor(r_mean, !!as.symbol(A_best_param))) %>% 
+      pull(cor)
+  df.losses_n[nrow(df.losses_n)+1,] = list("hsm", A_best_param, A_best_loss, B_loss, r_xval)
+
+  # cross validation on features
+  df.arrangement_A = df.tmp.features %>% slice(ixs_A)
+  df.arrangement_B = df.tmp.features %>% slice(ixs_B)
+
+  # get the parameters of the features regression to A
+  A_fit = df.arrangement_A %>%
+    lm(r_mean ~ . - trial - index - r_low - r_high, data = .)
+
+  A_loss = df.arrangement_A %>%
+    mutate(regression = A_fit$fitted.values) %>%
+    summarize(loss = rmse(r_mean, regression)) %>%
+    pull(loss)
+
+  # calculate the loss and corr on B based on the regression to A
+  df.B_info = df.arrangement_B %>%
+    mutate(regression = predict(A_fit, .)) %>%
+    summarize(loss = rmse(r_mean, regression), cor = cor(r_mean, regression))
+  
+  B_loss = df.B_info %>% 
+    pull(loss)
+  r_xval = df.B_info %>% 
+    pull(cor)
+
+  df.losses_n[nrow(df.losses_n) + 1, ] = list("f", NA, A_loss, B_loss, r_xval)
+  df.losses_resp = df.losses_resp %>% bind_rows(df.losses_n)
+}
+
+df.losses_resp = df.losses_resp %>%
+  mutate(diffs = B_losses - A_losses)
+
+# save(df.losses_resp, file = "cache/xval_losses_resp3.RData")
+```
+
+- analyze
+
+```{r, eval=F}
+df.xval_params = df.losses_resp %>%
+  group_by(model, A_params) %>% 
+  summarize(n = n(),
+            p5 = quantile(cors, .05),
+            p50 = mean(cors),
+            p95 = quantile(cors, .95)) %>% 
+  arrange(model, -n)
+
+xval_bestmodel = df.xval_params %>%
+  filter(model == "hsm") %>% 
+  filter(row_number() == 1) %>%
+  pull(A_params) %>%
+  paste0("hsm_", .)
+
+# mean, var of xval losses
+df.xval_rmses = df.losses_resp %>%
+  group_by(model) %>%
+  summarize(across(c("A_losses", "B_losses", "diffs"),
+                   c(p5 = ~quantile(., .05),
+                     p50 = ~mean(.),
+                     p95 = ~quantile(., .95)))) %>%
+  arrange(B_losses_p50)
+
+# dif between xval losses and full HSM losses
+df.xval_rmse_difs = df.losses_resp %>% 
+  select(model, B_losses) %>% 
+  group_by(x = ceiling(row_number() / 2)) %>%
+  pivot_wider(names_from = "model", values_from = "B_losses") %>% 
+  rename(xval_num = x) %>% 
+  ungroup() %>% 
+  mutate(across(c(everything(), -xval_num), ~ . - hsm)) %>% 
+  summarize(across(c(everything(), -xval_num),
+                   c(p5 = ~quantile(., .05), p50 = ~mean(.), p95 = ~quantile(., .95))))
+
+# dif between xval losses and full HSM losses
+df.xval_corr_difs= df.losses_resp %>% 
+  select(model, cors) %>% 
+  group_by(x = ceiling(row_number() / 2)) %>%
+  pivot_wider(names_from = "model", values_from = "cors") %>% 
+  rename(xval_num = x) %>% 
+  ungroup() %>% 
+  mutate(across(c(everything(), -xval_num), ~ hsm - .)) %>% 
+  summarize(across(c(everything(), -xval_num),
+                   c(p5 = ~quantile(., .05), p50 = ~mean(.), p95 = ~quantile(., .95))))
+
+## xval correlations
+df.xval_corrs = df.xval_params %>% 
+  group_by(model) %>% 
+  filter(row_number() == 1) %>% 
+  ungroup()
+```
+
+- plot
+
+```{r}
+ggplot(data = df.losses_resp %>% filter(!is.nan(B_losses)),
+       mapping = aes(
+         x = model %>% reorder(B_losses),
+         y = B_losses
+       )) +
+  geom_point(alpha = 0.08,
+             color = "coral",
+             position = position_jitter(width = 0.02, height = 0),
+             size = 2) +
+  stat_summary(fun = ~ mean(.),
+               fun.min = ~ mean(.) - sd(.),
+               fun.max = ~ mean(.) + sd(.),
+               # fun.args = list(conf.int=.99),
+               geom = "pointrange",
+               shape = 21,
+               size = 1,
+               fill = "white",
+               color = "red") +
+  labs(x = "model", y = "cross validation loss")
+
+ggplot(data = df.losses_resp %>% filter(!is.nan(cors)),
+       mapping = aes(
+         x = model %>% reorder(cors),
+         y = cors
+       )) +
+  geom_point(alpha = 0.08,
+             color = "coral",
+             position = position_jitter(width = 0.02, height = 0),
+             size = 2) +
+  stat_summary(fun = ~ mean(.),
+               fun.min = ~ mean(.) - sd(.),
+               fun.max = ~ mean(.) + sd(.),
+               geom = "pointrange",
+               shape = 21,
+               size = 1,
+               fill = "white",
+               color = "red") +
+  labs(x = "model", y = "correlation coefficient")
+```
+
+
+# Figures
+
+- note: figure fonts may not render at proper size but they will save at proper size
+
+## Exp 1
+
+### stimuli examples
+
+```{r eval=F}
+# Read in brick information
+json.location = "../../data/exp1/"
+stimuli.location = "../../figures/stimuli/exp1/"
+
+filenames = list.files(json.location) %>% mixedsort
+imagenames = list.files(stimuli.location) %>% mixedsort
+
+for (i in 1:length(imagenames)) {
+  df.plot = rjson::fromJSON(file = paste0(json.location, filenames[i])) %>%
+    unlist() %>%
+    matrix(ncol = 4, byrow = T) %>%
+    as.data.frame(stringsAsFactors = F) %>%
+    setNames(c("index", "x", "y", "angle")) %>%
+    mutate(index = str_replace(index, "brick_", "")) %>%
+    mutate(across(.cols = everything(), ~ as.numeric(.))) %>%
+    mutate(across(c(x, y), ~ . * 100)) %>%
+    mutate(y = 600 - y) %>%
+    filter(x != -500) %>%
+    mutate(e.x_1 = x - 40,
+           e.y_1 = y + 20,
+           e.x_2 = x + 40,
+           e.y_2 = y + 20,
+           e.x_3 = x + 40,
+           e.y_3 = y - 20,
+           e.x_4 = x - 40,
+           e.y_4 = y - 20) %>%
+    left_join(df.exp1.info %>% filter(trial == i) %>% select(index, fall)) %>%
+    wideToLong(within = 'edge') %>%
+    mutate(e.xt = x - e.x,
+           e.yt = y - e.y,
+           angle = -angle,
+           e.xr = e.xt * cos(angle) - e.yt * sin(angle),
+           e.yr = e.yt * cos(angle) + e.xt * sin(angle),
+           e.xrm = e.xr + x,
+           e.yrm = e.yr + y
+    ) %>%
+    arrange(index, edge) %>% 
+    filter(index != 0)
+
+  df.plot = df.plot %>% 
+    arrange(fall)
+  image = png::readPNG(paste0(stimuli.location, imagenames[i]))
+  p = ggplot(df.plot) +
+    annotation_custom(rasterGrob(image,
+                                 width = unit(1, "npc"),
+                                 height = unit(1, "npc")),
+                      xmin = 0, xmax = 800, ymin = 0, ymax = 600) +
+    scale_x_continuous(expand = c(0, 0), limits = c(0, 800)) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, 600)) +
+    scale_color_manual(values = c("black", "red")) +
+    theme_void() +
+    theme(axis.ticks.length = unit(0.001, "mm"),
+          legend.position = 'none')
+
+  for (j in unique(df.plot$index)) {
+    fall = df.plot %>% filter(index == j) %>% filter(row_number() == 1) %>% pull(fall)
+    if (i != 5 && fall == 1) {
+      p = p +
+        geom_polygon(data = df.plot %>% filter(index == j),
+                     aes(x = e.xrm, y = e.yrm, color = "red"),
+                     alpha = 0, linetype = 1, size = 1.5)
+    } else {
+      p = p +
+        geom_polygon(data = df.plot %>% filter(index == j),
+                     aes(x = e.xrm, y = e.yrm, color = "black"),
+                     alpha = 0, linetype = 1, size = 1.5)
+    }
+  }
+    
+  print(p)
+  img.name = paste0("../../figures/plots/exp1/stimuli_truth/", i, ".png")
+  ggsave(img.name, width = 8, height = 6, dpi = 100)
+  tmp = image_read(img.name)
+  tmp = image_crop(tmp, "400x550+200+50")
+  image_write(tmp, path = img.name, format = "png")
+}
+```
+
+- creating stimuli images
+
+```{r eval=F}
+ids = c(1, 8, 14, 19, 36, 41, 5)
+
+for (i in 1:length(ids)) {
+    id = ids[i]
+    img = image_read(paste0("../../figures/plots/exp1/stimuli_truth/", id, ".png"))
+    img = ggplot() + background_image(img) + theme_void() + coord_fixed(ratio = 4/3) +
+      theme(panel.border = element_rect(colour = "black", fill=NA, size=2),
+            plot.margin = unit(c(0,0,0,3), "pt"),
+            plot.tag.position = c(0.11, 0.92))
+  if (i == 1) {
+    row = img
+  } else {
+    row = row | img
+  }
+}
+
+row +
+  plot_annotation(tag_levels = 'a', tag_suffix = ")")
+  
+ggsave("../../figures/plots/exp1/exp1_stimuli.pdf", width = 9.5,height = 2)
+```
+
+### selection examples
+
+```{r eval=F}
+# brick size: 80 x 40
+
+# Read in brick information
+json.location = "../../data/exp1/"
+stimuli.location = "../../figures/stimuli/exp1/"
+
+filenames = list.files(json.location) %>% mixedsort
+imagenames = list.files(stimuli.location) %>% mixedsort
+
+# use the appropriate left-join line
+modelname = "hsm"
+# modelname = "feat"
+modelname = "people"
+df.exp1.percentages = df.exp1.selection.brick %>%
+  # left_join(df.exp1.model %>% select(trial, index, model = one_of(fit_bestmodel))) %>%
+  # mutate(model = df.exp123.regression %>% filter(exp == 1) %>% pull(fit123)) %>%
+  rename(model = response) %>%
+  mutate(model = model * 100)
+
+df.tmp = df.exp1.trials %>%
+  select(trial, responsibility = r_mean, prediction = p_mean)
+
+for (i in 1:length(imagenames)) {
+# for (i in 1:5) {
+  if (i == 5) next
+  df.plot = rjson::fromJSON(file = paste0(json.location, filenames[i])) %>%
+    unlist() %>%
+    matrix(ncol = 4, byrow = T) %>%
+    as.data.frame(stringsAsFactors = F) %>%
+    setNames(c("index", "x", "y", "angle")) %>%
+    mutate(index = str_replace(index, "brick_", "")) %>%
+    mutate(across(.cols = everything(),
+                  .fns = ~ as.numeric(.))) %>%
+    mutate(across(.cols = c(x, y),
+                  .fns = ~ . * 100)) %>%
+    mutate(y = 600 - y) %>%
+    filter(x != -500) %>%
+    mutate(e.x_1 = x - 40,
+           e.y_1 = y + 20,
+           e.x_2 = x + 40,
+           e.y_2 = y + 20,
+           e.x_3 = x + 40,
+           e.y_3 = y - 20,
+           e.x_4 = x - 40,
+           e.y_4 = y - 20) %>%
+    left_join(df.exp1.percentages %>% filter(trial == i) %>% select(index, model)) %>%
+    left_join(df.exp1.info %>% filter(trial == i) %>% select(index, fall)) %>% 
+    mutate(selection = round(model, 0)) %>%
+    select(-model) %>%
+    wideToLong(within = 'edge') %>%
+    mutate(e.xt = x - e.x,
+           e.yt = y - e.y,
+           angle = -angle,
+           e.xr = e.xt * cos(angle) - e.yt * sin(angle),
+           e.yr = e.yt * cos(angle) + e.xt * sin(angle),
+           e.xrm = e.xr + x,
+           e.yrm = e.yr + y
+    ) %>%
+    arrange(index, edge) %>% 
+    filter(index != 0)
+
+  df.text = df.plot %>%
+    select(index, x, y, selection) %>%
+    distinct()
+
+  image = png::readPNG(paste0(stimuli.location, imagenames[i]))
+  p = ggplot(df.plot) +
+    annotation_custom(rasterGrob(image,
+                                 width = unit(1, "npc"),
+                                 height = unit(1, "npc")),
+                      xmin = 0, xmax = 800, ymin = 0, ymax = 600) +
+    scale_x_continuous(expand = c(0, 0), limits = c(0, 800)) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, 600)) +
+    # scale_fill_gradient(low = 'white', high = 'red', limits = c(0, 100)) +
+    scale_alpha_continuous(range = c(min(df.plot$selection/100), 
+                                     max(df.plot$selection/100))) +
+    scale_color_manual(values = c("black", "red")) +
+    theme_void() +
+    theme(axis.ticks.length = unit(0.001, "mm"),
+          legend.position = 'none')
+
+  if (modelname == "people") {
+    p = p +
+      geom_text(data = df.tmp %>%
+                  filter(trial == i) %>%
+                  mutate(pred_text = paste0("prediction: ", 
+                                            as.character(round(prediction, 1)), 
+                                            " blocks")),
+                mapping = aes(x = 220,
+                              y = 520,
+                              hjust = 0,
+                              label = pred_text),
+                size = 8) +
+      geom_text(data = df.tmp %>%
+                    filter(trial == i) %>%
+                    mutate(resp_text = paste0("responsibility: ", 
+                                              as.character(round(responsibility, 0)))),
+                mapping = aes(x = 220,
+                              y = 480,
+                              hjust = 0,
+                              label = resp_text),
+                size = 8)
+  }
+
+  # make sure red-bordered blocks are drawn after black-bordered blocks
+  df.plot = df.plot %>% 
+    arrange(fall)
+  
+  for (j in unique(df.plot$index)) {
+    p = p +
+      geom_polygon(data = df.plot %>% filter(index == j), 
+                   aes(x = e.xrm, y = e.yrm, alpha=selection/100, color = as.factor(fall)),
+                   fill = "white",
+                   linetype = 1, size = 1.5) +
+      geom_text(data = df.text %>% 
+                  filter(index == j), aes(x = x, y = y, label = selection), size = 7)
+  }
+  print(p)
+  img.name = paste0("../../figures/plots/exp1/stimuli_percentages/",i, "_",modelname,".png")
+  ggsave(img.name, width = 8, height = 6, dpi = 100)
+  tmp = image_read(img.name)
+  tmp = image_crop(tmp, "400x550+200+50")
+  image_write(tmp, path = img.name, format = "png")
+}
+```
+
+- create sample array
+
+```{r eval=F}
+ids = c(18, 24, 21, 25, 27)
+labels = c("a)", "b)", "c)", "d)", "e)")
+
+label_hsm = ggplot() + theme_void() + ylab("CSM") + 
+  theme(axis.title.y.left = element_text(face = "bold", size = 18, angle = 90))
+label_feat = ggplot() + theme_void() + ylab("features model") + 
+  theme(axis.title.y.left = element_text(face = "bold", size = 18, angle = 90))
+label_ppl = ggplot() + theme_void() + ylab("people") +
+  theme(axis.title.y.left = element_text(face = "bold", size = 18, angle = 90))
+
+combo_img = (label_hsm / label_feat / label_ppl)
+
+for (i in 1:length(ids)) {
+  id = ids[[i]]
+  img_hsm = image_read(paste0('../../figures/plots/exp1/stimuli_percentages/',
+                              id,'_hsm.png'))
+  img_feat = image_read(paste0('../../figures/plots/exp1/stimuli_percentages/',
+                               id,'_feat.png'))
+  img_ppl = image_read(paste0('../../figures/plots/exp1/stimuli_percentages/',
+                              id,'_people.png'))
+  img_hsm = ggplot() + background_image(img_hsm) + theme_void() + 
+    coord_fixed(ratio = 4/3) + ggtitle(labels[[i]]) +
+    theme(plot.title = element_text(face = "bold", size = 20, vjust = -5, hjust = 0.06),
+          axis.title.y.left = element_text(face = "bold", size = 10, angle = 90))
+  img_feat = ggplot() + background_image(img_feat) + coord_fixed(ratio = 4/3) + 
+    theme_void() + theme(plot.margin = unit(c(10,10,10,0), "pt"))
+  img_ppl = ggplot() + background_image(img_ppl)  + coord_fixed(ratio = 4/3) +
+    theme_void()
+  
+  img = (img_hsm / img_feat / img_ppl)
+
+  combo_img = combo_img | img
+}
+
+combo_img + plot_layout(widths = c(0.05, 1, 1, 1, 1, 1))
+
+ggsave("../../figures/plots/exp1/exp1_samples.pdf", width = 10,height = 8)
+```
+
+
+### responses vs models
+
+```{r}
+# SELECTION
+
+df.plot = df.exp1.master %>%
+  select(trial, index, response, hsm = any_of(fit_bestmodel)) %>% 
+  left_join(df.exp123.regression %>% 
+              filter(exp == 1) %>% 
+              select(trial, index, features = fit123),
+            by = c("trial", "index"))
+
+# hsm model
+plot.hsm_selection = ggplot(data = df.plot, mapping = aes(x = hsm, y = response)) +
+  geom_abline(intercept = 0, slope = 1, linetype='dashed') +
+  geom_smooth(method='lm', color='lightskyblue', fill='lightblue1') +
+  geom_point(size=2.5, alpha = 0.4) +
+  annotate(geom = "text", x=0,y=Inf,
+           label = paste0("r = ", cor(df.plot$response,df.plot$hsm) %>% round(2)),
+           hjust = 0, vjust = 1, size = 8)+
+  annotate(geom = "text", x=0,y=Inf,
+           label = paste0("RMSE = ", rmse(df.plot$response,df.plot$hsm) %>% round(2)),
+           hjust = 0, vjust = 2.5, size = 8) +
+  scale_x_continuous(breaks = seq(0, 1, .25), 
+                     labels = str_c(seq(0, 100, 25), "%"), limits = c(0, 1.05)) +
+  scale_y_continuous(breaks = seq(0, 1, .25), 
+                     labels = str_c(seq(0, 100, 25), "%"), limits = c(0, 1.2)) +
+  labs(x = "CSM",
+       y = "selection probability",
+       tag = "a)") +
+  theme(axis.title.x = element_text(margin = margin(t = 10)), 
+        plot.tag = element_text(face = "bold"))
+
+# features model
+plot.features_selection = ggplot(data = df.plot, 
+                                 mapping = aes(x = features, y = response)) +
+  geom_smooth(method='lm', color='lightskyblue', fill="lightblue1") +
+  geom_point(size=2.5, alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, linetype='dashed') +
+  annotate(geom = "text", x=0,y=Inf,
+           label = paste0("r = ", cor(df.plot$response,df.plot$features) %>% round(2)),
+           hjust = 0, vjust = 1, size = 8)+
+  annotate(geom = "text", x=0,y=Inf,
+           label = paste0("RMSE = ", rmse(df.plot$response,df.plot$features) %>% round(2)),
+           hjust = 0, vjust =2.5, size = 8) +
+  scale_x_continuous(breaks = seq(0, 1, .25), 
+                     labels = str_c(seq(0, 100, 25), "%"), limits = c(0, 1.05)) +
+  scale_y_continuous(breaks = seq(0, 1, .25), 
+                     labels = str_c(seq(0, 100, 25), "%"), limits = c(0, 1.2)) +
+  labs(x = "features model",
+       y = "selection probability",
+       tag = "d)") +
+  theme(axis.title.x = element_text(margin = margin(t = 10)),
+        plot.tag = element_text(face = "bold"))
+
+
+# PREDICTION
+
+df.plot = df.exp12.pr_regression %>% 
+  filter(exp == 1) %>%
+  select(trial, hsm, features, mean = p_mean, low = p_low, high = p_high)
+ids = c(18, 24, 21, 25, 27)
+df.tmp = df.plot %>% 
+  filter(trial %in% ids) %>% 
+  arrange(ids) %>% 
+  mutate(lets = letters[1:5]) %>% 
+  mutate(hsm_ys = c(1,1.5,2,-1.5,-1.5),
+         hsm_xs = c(-1.5,-.5,1.2,-.2,.5),
+         feat_ys = c(1,.2,-1.5,-1.5,1.2),
+         feat_xs = c(-1.5,-.8,.5,-.2,.2))
+
+# hsm model
+plot.hsm_prediction = ggplot(df.plot, aes(x = hsm, y = mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  stat_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbar(aes(ymin = low, ymax = high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  geom_point(data=df.tmp, aes(hsm, mean), color="red", size=3) +
+  geom_text_repel(data = df.tmp, aes(label = lets), color="red", size=6,
+                  nudge_x = df.tmp$hsm_xs, nudge_y = df.tmp$hsm_ys) +
+  annotate(geom = "text", 
+           label = str_c("r = ", cor(df.plot$hsm, df.plot$mean) %>% round(2)), 
+           x = .2, y = Inf, hjust = 0, vjust = 1, size = 8) +
+  annotate(geom = "text", 
+           label = str_c("RMSE = ", rmse(df.plot$hsm, df.plot$mean) %>% round(2)),
+           x = .2, y = Inf, hjust = 0, vjust = 2.5, size = 8) +
+  labs(x = "CSM", y = "prediction judgment", tag = "b)") +
+  scale_x_continuous(breaks = seq(0, 8, 2), labels = seq(0, 8, 2), limits = c(0, 8)) +
+  scale_y_continuous(breaks = seq(0, 8, 2), labels = seq(0, 8, 2), limits = c(0, 9)) +
+  theme(panel.grid = element_blank(), plot.tag = element_text(face = "bold"))
+
+# features model
+plot.features_prediction = ggplot(df.plot, aes(x = features, y = mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  stat_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbar(aes(ymin = low, ymax = high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  geom_point(data=df.tmp, aes(features, mean), color="red", size=3) +
+  geom_text_repel(data = df.tmp, aes(label = lets), color="red", size=6,
+                  nudge_x = df.tmp$feat_xs, nudge_y = df.tmp$feat_ys) +
+  annotate(geom = "text", 
+           label = str_c("r = ", cor(df.plot$features, df.plot$mean) %>% round(2)), 
+           x = .2, y = Inf, hjust = 0, vjust = 1.5, size = 8) +
+  annotate(geom = "text",
+           label = str_c("RMSE = ", rmse(df.plot$features, df.plot$mean) %>% round(2)), 
+           x = .2, y = Inf, hjust = 0, vjust = 3, size = 8) +
+  labs(x = "features model", y = "prediction judgment", tag = "e)") +
+  scale_x_continuous(breaks = seq(0, 8, 2), labels = seq(0, 8, 2), limits = c(0, 8)) +
+  scale_y_continuous(breaks = seq(0, 8, 2), labels = seq(0, 8, 2), limits = c(0, 9)) +
+  theme(panel.grid = element_blank(), plot.tag = element_text(face = "bold"))
+
+
+# RESPONSIBILITY
+
+df.plot = df.exp12.pr_regression %>% 
+  filter(exp == 1) %>%
+  select(hsm = r_hsm, features = r_features, mean = r_mean, low = r_low, high = r_high)
+
+# hsm model
+plot.hsm_responsibility = ggplot(df.plot, aes(x = hsm, y = mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype='dashed') +
+  stat_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbar(aes(ymin = low, ymax = high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  annotate(geom = "text",
+           label = str_c("r = ", cor(df.plot$hsm, df.plot$mean) %>% round(2)), 
+           x = 0, y = Inf, hjust = 0, vjust = 1, size = 8) +
+  annotate(geom = "text", 
+           label = str_c("RMSE = ", rmse(df.plot$hsm, df.plot$mean) %>% round(2)),
+           x = 0, y = Inf, hjust = 0, vjust = 2.5, size = 8) +
+  labs(x = "CSM", y = "responsibility judgment", tag = "c)") +
+  scale_x_continuous(breaks = seq(0, 100, 25), limits = c(0, 105)) +
+  scale_y_continuous(breaks = seq(0, 100, 25), limits = c(0, 120)) +
+  theme(panel.grid = element_blank(), plot.tag = element_text(face = "bold"))
+
+# features model
+plot.features_responsibility = ggplot(df.plot, aes(x = features, y = mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype='dashed') +
+  stat_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbar(aes(ymin = low, ymax = high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  annotate(geom = "text",
+           label = str_c("r = ", cor(df.plot$features, df.plot$mean) %>% round(2)),
+           x = 0, y = Inf, hjust = 0, vjust = 1, size = 8) +
+  annotate(geom = "text",
+           label = str_c("RMSE = ", rmse(df.plot$features, df.plot$mean) %>% round(2)),
+           x = 0, y = Inf, hjust = 0, vjust = 2.5, size = 8) +
+  labs(x = "features model", y = "responsibility judgment", tag = "f)") +
+  scale_x_continuous(breaks = seq(0, 100, 25), limits = c(0, 105)) +
+  scale_y_continuous(breaks = seq(0, 100, 25), limits = c(0, 120)) +
+  theme(panel.grid = element_blank(), plot.tag = element_text(face = "bold"))
+
+# FIGURE
+
+col1 <- ggplot() + annotate(geom = 'text', x=-5, y=0, label="Selection", 
+                            size=9, fontface = "bold" ) + theme_void()
+col2 <- ggplot() + annotate(geom = 'text', x=0, y=0, label="Prediction",
+                            size=9, fontface = "bold") + theme_void() 
+col3 <- ggplot() + annotate(geom = 'text', x=0, y=0, label="Responsibility",
+                            size=9, fontface = "bold") + theme_void()
+
+(col1 / plot.hsm_selection / plot.features_selection) + 
+  plot_layout(heights = c(0.15, 1, 1)) |
+  (col2 / plot.hsm_prediction / plot.features_prediction) + 
+  plot_layout(heights = c(0.15, 1, 1)) |
+  (col3 / plot.hsm_responsibility / plot.features_responsibility) + 
+  plot_layout(heights = c(0.15, 1, 1))
+
+# ggsave("../../figures/plots/exp1/exp1_plots.pdf", width = 15, height = 10)
+```
+
+
+### selection to responsibility
+
+```{r}
+# selection vs prediction
+df.plot = df.exp1.selection.long %>% 
+  group_by(participant, trial) %>% 
+  summarize(s_pred = sum(response), .groups = "drop") %>% 
+  group_by(trial) %>% 
+  summarize(s_mean = mean(s_pred),
+            s_low = smean.cl.boot(s_pred)[2],
+            s_high = smean.cl.boot(s_pred)[3]) %>% 
+  left_join(df.exp1.trials %>% 
+    select(trial, p_mean, p_low, p_high, r_mean, r_low, r_high, n_bricks),
+    by = "trial") %>% 
+  mutate(sp_mean = s_mean/n_bricks, sp_low = s_low/n_bricks, sp_high = s_high/n_bricks,
+         pp_mean = p_mean/n_bricks, pp_low = p_low/n_bricks, pp_high = p_high/n_bricks)
+
+plot.selection_prediction = ggplot(df.plot, aes(x = sp_mean, y = pp_mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  geom_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbarh(aes(xmin = sp_low, xmax = sp_high), height = 0, color='grey70') +
+  geom_errorbar(aes(ymin = pp_low, ymax = pp_high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  annotate(geom = "text", 
+           label = str_c("r = ", cor(df.plot$sp_mean, df.plot$pp_mean) %>% round(2)),
+           x = 0, y = Inf, hjust = 0, vjust = 1.5, size = 8) +
+  annotate(geom = "text",
+           label = str_c("RMSE = ", rmse(df.plot$sp_mean, df.plot$pp_mean) %>% round(2)),
+           x = 0, y = Inf, hjust = 0, vjust = 3, size = 8) +
+  # annotate(geom = "text", label = "", x = 0, y = 0, hjust = 0) +
+  labs(x = "selection proportion", y = "prediction proportion") +
+  # coord_cartesian(ylim = c(0, NA), xlim = c(0, NA)) +
+  scale_x_continuous(breaks = seq(0, 1, .2), labels = seq(0, 1, .2), limits = c(0, 1)) +
+  scale_y_continuous(breaks = seq(0, 1, .2), labels = seq(0, 1, .2), limits = c(0, 1)) +
+  theme(text = element_text(size = 20),
+        panel.grid = element_blank(),
+        axis.title.x = element_text(margin = margin(t = 10)),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+df.plot2 = df.exp12.pr_regression %>% 
+  filter(exp == 1) %>% 
+  mutate(across(contains("r_prediction"), ~./100))
+
+# selection vs responsibility
+plot.prediction_responsibility = ggplot(df.plot2, 
+                                        aes(x = r_prediction_mean, y = r_mean)) +
+  geom_abline(intercept = 0, slope = 100, linetype = 2) +
+  geom_smooth(method = "lm", color = "lightskyblue", fill="lightblue1") +
+  geom_errorbarh(aes(xmin = r_prediction_low, xmax = r_prediction_high), 
+                 height = 0, color="grey70") +
+  geom_errorbar(aes(ymin = r_low, ymax = r_high), width = 0, color="grey70") +
+  geom_point(size = 2, color="black") +
+  annotate(geom = "text",
+           label = str_c("r = ", cor(df.plot2$r_mean, df.plot2$r_prediction_mean)
+                         %>% round(2)),
+           x = 0, y = Inf, hjust = 0, vjust = 1.5, size = 8) +
+  annotate(geom = "text",
+           label = str_c("RMSE = ", rmse(df.plot2$r_mean, df.plot2$r_prediction_mean*100)
+                         %>% round(2)),
+           x = 0, y = Inf, hjust = 0, vjust = 3, size = 8) +
+  labs(x = "scaled prediction proportion", y = "responsibility judgment") +
+  scale_x_continuous(breaks = seq(0, 1, .2),
+                     labels = seq(0, 1, .2), limits = c(0, 1)) +
+  scale_y_continuous(breaks = seq(0, 100, 20), 
+                     labels = seq(0, 100, 20), limits = c(0, 100)) +
+  # coord_cartesian(xlim = c(0, 0.65), ylim = c(0, 0.9)) +
+  theme(text = element_text(size = 20),
+        panel.grid = element_blank(),
+        axis.title.x = element_text(margin = margin(t = 10)),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+plot.selection_prediction + plot.prediction_responsibility +
+  plot_annotation(tag_levels = "a", tag_suffix = ")") &
+  theme(plot.tag = element_text(face = 'bold'))
+
+# ggsave("../../figures/plots/exp1/exp1_selection_responsibility.pdf",width = 12,height = 6)
+```
+
+## Exp 2
+
+### stimuli examples
+
+```{r eval=F}
+# Read in brick information
+json.location = "../../data/exp2/"
+stimuli.location = "../../figures/stimuli/exp2/"
+
+filenames = list.files(json.location) %>% mixedsort()
+imagenames = list.files(stimuli.location) %>% mixedsort
+
+for (i in 1:length(imagenames)) {
+  df.plot = rjson::fromJSON(file = paste0(json.location, filenames[i])) %>%
+    unlist() %>%
+    matrix(ncol = 4, byrow = T) %>%
+    as.data.frame(stringsAsFactors = F) %>%
+    setNames(c("index", "x", "y", "angle")) %>%
+    mutate(index = str_replace(index, "brick_", "")) %>%
+    mutate(across(.cols = everything(),
+                  .fns = ~ as.numeric(.))) %>%
+    mutate(across(.cols = c(x, y),
+                  .fns = ~ . * 100)) %>%
+    mutate(y = 600 - y) %>%
+    filter(x != -500) %>%
+    mutate(e.x_1 = x - 40,
+           e.y_1 = y + 20,
+           e.x_2 = x + 40,
+           e.y_2 = y + 20,
+           e.x_3 = x + 40,
+           e.y_3 = y - 20,
+           e.x_4 = x - 40,
+           e.y_4 = y - 20) %>%
+    left_join(df.exp2.info %>% filter(trial == i) %>% select(index, fall)) %>%
+    wideToLong(within = 'edge') %>%
+    mutate(e.xt = x - e.x,
+           e.yt = y - e.y,
+           angle = -angle,
+           e.xr = e.xt * cos(angle) - e.yt * sin(angle),
+           e.yr = e.yt * cos(angle) + e.xt * sin(angle),
+           e.xrm = e.xr + x,
+           e.yrm = e.yr + y
+    ) %>%
+    arrange(index, edge) %>% 
+    filter(index != 0)
+
+  image = png::readPNG(paste0(stimuli.location, imagenames[i]))
+  p = ggplot(df.plot) +
+    annotation_custom(rasterGrob(image,
+                                 width = unit(1, "npc"),
+                                 height = unit(1, "npc")),
+                      xmin = 0, xmax = 800, ymin = 0, ymax = 600) +
+    scale_x_continuous(expand = c(0, 0), limits = c(0, 800)) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, 600)) +
+    scale_color_manual(values = c("black", "red")) +
+    theme_void() +
+    theme(axis.ticks.length = unit(0.001, "mm"),
+          legend.position = 'none')
+
+  df.plot = df.plot %>% 
+    arrange(fall)
+  for (j in unique(df.plot$index)) {
+    fall = df.plot %>% filter(index == j) %>% filter(row_number() == 1) %>% pull(fall)
+    if (fall == 1) {
+      p = p +
+        geom_polygon(data = df.plot %>% filter(index == j),
+                     aes(x = e.xrm, y = e.yrm, color = "red"),
+                     alpha = 0, linetype = 1, size = 1.5)
+    } else if (fall == 0) {
+      p = p +
+        geom_polygon(data = df.plot %>% filter(index == j),
+                     aes(x = e.xrm, y = e.yrm, color = "black"),
+                     alpha = 0, linetype = 1, size = 1.5)
+    }
+  }
+    
+  print(p)
+  img.name = paste0("../../figures/plots/exp2/stimuli_truth/", i, ".png")
+  ggsave(img.name, width = 8, height = 6, dpi = 100)
+  tmp = image_read(img.name)
+  tmp = image_crop(tmp, "400x550+200+50")
+  image_write(tmp, path = img.name, format = "png")
+}
+```
+
+- creating stimuli images
+
+```{r eval=F}
+ids = list(c(10,12,14), c(16,19,20), c(36,42,38), c(24,25,27))
+labels = c("I", "II", "III", "IV")
+tags = c("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l")
+
+for (i in 1:length(ids)) {
+  tower = ggplot() + theme_void() + ylab(paste0("Tower ", labels[i])) +
+    theme(axis.title.y.left = element_text(face = "bold", size = 18, angle = 90),
+          plot.margin = unit(c(0,0,0,10), "pt"))
+  for (j in 1:length(ids[[i]])) {
+    id = ids[[i]][[j]]
+    img = image_read(paste0("../../figures/plots/exp2/stimuli_truth/", id, ".png"))
+    img = ggplot() + background_image(img) + theme_void() + coord_fixed(ratio = 4/3) +
+      
+      labs(title = paste0(tags[[(i-1)*3+j]], ")")) +
+      theme(panel.border = element_rect(colour = "black", fill=NA, size=2),
+            plot.margin = unit(c(0,0,0,3), "pt"),
+            plot.title = element_text(size = 15, vjust = -4.7, hjust = 0.11),
+            plot.title.position = "panel")
+    tower = tower | img
+  }
+  
+  if (i %% 2 == 1) {
+    row = tower + plot_layout(widths = c(0.05, 1, 1, 1))
+  } else {
+    tower = tower + plot_layout(widths = c(0.05, 1, 1, 1))
+    row = row - tower
+    if (i == 2) {
+      rows = row
+    } else if (i == 4) {
+      rows = rows / row
+    }
+  }
+}
+
+rows
+
+ggsave("../../figures/plots/exp2/exp2_stimuli.pdf", width = 9.5,height = 4)
+
+```
+
+
+### selection examples
+
+```{r eval=F}
+# Read in brick information
+json.location = "../../data/exp2/"
+stimuli.location = "../../figures/stimuli/exp2/"
+
+filenames = list.files(json.location) %>% mixedsort
+imagenames = list.files(stimuli.location) %>% mixedsort
+
+# use the appropriate left-join line
+modelname = "hsm"
+# modelname = "feat"
+modelname = "people"
+df.exp2.percentages = df.exp2.selection.brick %>%
+  # left_join(df.exp2.model %>% select(trial, index, model = one_of(fit_bestmodel))) %>%
+  # mutate(model = df.exp123.regression %>% filter(exp == 2) %>% pull(fit123)) %>%
+  rename(model = response) %>%
+  mutate(model = model * 100)
+
+df.tmp = df.exp2.trials %>%
+  select(trial, responsibility = r_mean, prediction = p_mean)
+
+for (i in 1:length(imagenames)) {
+  df.plot = rjson::fromJSON(file = paste0(json.location, filenames[i])) %>%
+    unlist() %>%
+    matrix(ncol = 4, byrow = T) %>%
+    as.data.frame(stringsAsFactors = F) %>%
+    setNames(c("index", "x", "y", "angle")) %>%
+    mutate(index = str_replace(index, "brick_", "")) %>%
+    mutate(across(.cols = everything(),
+                  .fns = ~ as.numeric(.))) %>%
+    mutate(across(.cols = c(x, y),
+                  .fns = ~ . * 100)) %>%
+    mutate(y = 600 - y) %>%
+    filter(x != -500) %>%
+    mutate(e.x_1 = x - 40,
+           e.y_1 = y + 20,
+           e.x_2 = x + 40,
+           e.y_2 = y + 20,
+           e.x_3 = x + 40,
+           e.y_3 = y - 20,
+           e.x_4 = x - 40,
+           e.y_4 = y - 20) %>%
+    left_join(df.exp2.percentages %>% filter(trial == i) %>% select(index, model)) %>%
+    left_join(df.exp2.info %>% filter(trial == i) %>% select(index, fall)) %>%
+    mutate(selection = round(model, 0)) %>%
+    select(-model) %>%
+    wideToLong(within = 'edge') %>%
+    mutate(e.xt = x - e.x,
+           e.yt = y - e.y,
+           angle = -angle,
+           e.xr = e.xt * cos(angle) - e.yt * sin(angle),
+           e.yr = e.yt * cos(angle) + e.xt * sin(angle),
+           e.xrm = e.xr + x,
+           e.yrm = e.yr + y
+    ) %>%
+    arrange(index, edge) %>% 
+    filter(index != 0)
+
+  df.text = df.plot %>%
+    select(index, x, y, selection) %>%
+    distinct()
+
+  image = png::readPNG(paste0(stimuli.location, imagenames[i]))
+  p = ggplot(df.plot) +
+    annotation_custom(rasterGrob(image,
+                                 width = unit(1, "npc"),
+                                 height = unit(1, "npc")),
+                      xmin = 0, xmax = 800, ymin = 0, ymax = 600) +
+    scale_x_continuous(expand = c(0, 0), limits = c(0, 800)) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, 600)) +
+    # scale_fill_gradient(low = 'white', high = 'red', limits = c(0, 100)) +
+    scale_alpha_continuous(range = c(min(df.plot$selection/100), 
+                                     max(df.plot$selection/100))) +
+    scale_color_manual(values = c("black", "red")) +
+    theme_void() +
+    theme(axis.ticks.length = unit(0.001, "mm"),
+          legend.position = 'none')
+
+  # add prediction and responsibility text to image
+  if (modelname == "people") {
+    p = p +
+      geom_text(data = df.tmp %>%
+                  filter(trial == i) %>%
+                  mutate(pred_text = paste0("prediction: ", 
+                                            as.character(round(prediction, 1)),
+                                            " blocks")),
+                mapping = aes(x = 220,
+                              y = 520,
+                              hjust = 0,
+                              label = pred_text),
+                size = 8) +
+      geom_text(data = df.tmp %>%
+                    filter(trial == i) %>%
+                    mutate(resp_text = paste0("responsibility: ",
+                                              as.character(round(responsibility, 0)))),
+                mapping = aes(x = 220,
+                              y = 480,
+                              hjust = 0,
+                              label = resp_text),
+                size = 8)
+  }
+
+  df.plot = df.plot %>% 
+    arrange(fall)
+  for (j in unique(df.plot$index)) {
+    p = p +
+      geom_polygon(data = df.plot %>% filter(index == j), 
+                   aes(x = e.xrm, y = e.yrm, alpha = selection/100, color=as.factor(fall)),
+                   fill = "white",
+                   linetype = 1, size = 1.5) +
+      geom_text(data = df.text %>% filter(index == j),
+                aes(x = x, y = y, label = selection), size = 7)
+  }
+  print(p)
+  img.name = paste0("../../figures/plots/exp2/stimuli_percentages/",i,"_",modelname,".png")
+  ggsave(img.name, width = 8, height = 6, dpi = 100)
+  tmp = image_read(img.name)
+  tmp = image_crop(tmp, "400x550+200+50")
+  image_write(tmp, path = img.name, format = "png")
+}
+```
+
+- create sample array
+
+```{r eval=F}
+ids = c(2, 6, 24, 20, 13)
+ids = c(38, 42, 14, 20, 3)
+labels = c("a)", "b)", "c)", "d)", "e)")
+
+label_hsm = ggplot() + theme_void() + ylab("CSM") + 
+  theme(axis.title.y.left = element_text(face = "bold", size = 18, angle = 90))
+label_feat = ggplot() + theme_void() + ylab("features model") + 
+  theme(axis.title.y.left = element_text(face = "bold", size = 18, angle = 90))
+label_ppl = ggplot() + theme_void() + ylab("people") +
+  theme(axis.title.y.left = element_text(face = "bold", size = 18, angle = 90))
+
+combo_img = (label_hsm / label_feat / label_ppl)
+
+
+for (i in 1:length(ids)) {
+  id = ids[[i]]
+  img_hsm = image_read(paste0('../../figures/plots/exp2/stimuli_percentages/',
+                              id,'_hsm.png'))
+  img_feat = image_read(paste0('../../figures/plots/exp2/stimuli_percentages/',
+                               id,'_feat.png'))
+  img_ppl = image_read(paste0('../../figures/plots/exp2/stimuli_percentages/',
+                              id,'_people.png'))
+  img_hsm = ggplot() + background_image(img_hsm) + theme_void() + 
+    coord_fixed(ratio=4/3) + ggtitle(labels[[i]]) +
+    theme(plot.title = element_text(face = "bold", size = 20, vjust = -5, hjust = 0.06),
+          axis.title.y.left = element_text(face = "bold", size = 10, angle = 90))
+  img_feat = ggplot() + background_image(img_feat) + theme_void() + 
+    coord_fixed(ratio=4/3) + theme(plot.margin = unit(c(10,10,10,0), "pt"))
+  img_ppl = ggplot() + background_image(img_ppl)  + theme_void() + coord_fixed(ratio=4/3)
+  
+  img = (img_hsm / img_feat / img_ppl)
+  combo_img = combo_img | img
+}
+
+combo_img + plot_layout(widths = c(0.05, 1, 1, 1, 1, 1))
+
+ggsave("../../figures/plots/exp2/exp2_samples.pdf",width = 10,height = 8)
+```
+
+### responses vs models
+
+```{r}
+# SELECTION
+df.plot = df.exp2.master %>%
+  select(trial, index, response, hsm = any_of(fit_bestmodel)) %>% 
+  left_join(df.exp123.regression %>% 
+              filter(exp == 2) %>% 
+              select(trial, index, features = fit123), 
+            by = c("trial", "index"))
+
+# hsm model
+plot.hsm_selection = ggplot(data = df.plot, mapping = aes(x = hsm, y = response)) +
+  geom_abline(intercept = 0, slope = 1, linetype='dashed') +
+  geom_smooth(method='lm', color='lightskyblue', fill='lightblue1') +
+  geom_point(size=2.5, alpha = 0.4) +
+  annotate(geom = "text", x=0,y=Inf,
+           label = paste0("r = ", cor(df.plot$response,df.plot$hsm) %>% round(2)),
+           hjust = 0, vjust = 1, size = 8)+
+  annotate(geom = "text", x=0,y=Inf,
+           label = paste0("RMSE = ", rmse(df.plot$response,df.plot$hsm) %>% round(2)),
+         hjust = 0, vjust =2.5, size = 8) +
+  scale_x_continuous(breaks = seq(0, 1, .25), 
+                     labels = str_c(seq(0, 100, 25), "%"), limits = c(0, 1.05)) +
+  scale_y_continuous(breaks = seq(0, 1, .25), 
+                     labels = str_c(seq(0, 100, 25), "%"), limits = c(0, 1.2)) +
+  labs(x = "CSM", y = "selection probability", tag = "a)") +
+  theme(axis.title.x = element_text(margin = margin(t = 10)), 
+        plot.tag = element_text(face = "bold"))
+
+# features model
+plot.features_selection = ggplot(data = df.plot, 
+                                 mapping = aes(x = features, y = response)) +
+  geom_smooth(method='lm', color='lightskyblue', fill="lightblue1") +
+  geom_point(size=2.5, alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, linetype='dashed') +
+  annotate(geom = "text", x=0,y=Inf,
+           label = paste0("r = ", cor(df.plot$response,df.plot$features) %>% round(2)),
+           hjust = 0, vjust = 1, size = 8)+
+  annotate(geom = "text", x=0,y=Inf,
+           label = paste0("RMSE = ", rmse(df.plot$response,df.plot$features) %>% round(2)),
+         hjust = 0, vjust =2.5, size = 8) +
+  scale_x_continuous(breaks = seq(0, 1, .25), 
+                     labels = str_c(seq(0, 100, 25), "%"), limits = c(0, 1.05)) +
+  scale_y_continuous(breaks = seq(0, 1, .25),
+                     labels = str_c(seq(0, 100, 25), "%"), limits = c(0, 1.2)) +
+  labs(x = "features model", y = "selection probability", tag = "d)") +
+  theme(axis.title.x = element_text(margin = margin(t = 10)),
+        plot.tag = element_text(face = "bold"))
+
+
+# PREDICTION
+df.plot = df.exp12.pr_regression %>% 
+  filter(exp == 2) %>%
+  select(trial, hsm, features, mean = p_mean, low = p_low, high = p_high)
+ids = c(2, 6, 24, 20, 13)
+df.tmp = df.plot %>% 
+  filter(trial %in% ids) %>% 
+  arrange(ids) %>% 
+  mutate(lets = letters[1:5]) %>% 
+  mutate(hsm_ys = c(0,-1,1,1.5,-1.5),
+         hsm_xs = c(1,1,-.4,-.2,.5),
+         feat_ys = c(.3,1.5,-1.5,1,1.2),
+         feat_xs = c(.5,-.8,1.5,-.2,-1))
+
+# hsm model
+plot.hsm_prediction = ggplot(df.plot, aes(x = hsm, y = mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  stat_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbar(aes(ymin = low, ymax = high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  geom_point(data=df.tmp, aes(hsm, mean), color="red", size=3) +
+  geom_text_repel(data = df.tmp, aes(label = lets), color="red", size=6,
+                  nudge_x = df.tmp$hsm_xs, nudge_y = df.tmp$hsm_ys) +
+  annotate(geom = "text", 
+           label = str_c("r = ", cor(df.plot$hsm, df.plot$mean) %>% round(2)), 
+           x = .2, y = Inf, hjust = 0, vjust = 1, size = 8) +
+  annotate(geom = "text", 
+           label = str_c("RMSE = ", rmse(df.plot$hsm, df.plot$mean) %>% round(2)), 
+           x = .2, y = Inf, hjust = 0, vjust = 2.5, size = 8) +
+  labs(x = "CSM", y = "prediction judgment", tag = "b)") +
+  scale_x_continuous(breaks = seq(0, 8, 2), limits = c(0, 8)) +
+  scale_y_continuous(breaks = seq(0, 8, 2), limits = c(0, 9)) +
+  theme(text = element_text(size = 20), panel.grid = element_blank(),
+        plot.tag = element_text(face = "bold"))
+
+# features model
+plot.features_prediction = ggplot(df.plot, aes(x = features, y = mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  stat_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbar(aes(ymin = low, ymax = high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  geom_point(data=df.tmp, aes(features, mean), color="red", size=3) +
+  geom_text_repel(data = df.tmp, aes(label = lets), color="red", size=6,
+                  nudge_x = df.tmp$feat_xs, nudge_y = df.tmp$feat_ys) +
+  annotate(geom = "text", 
+           label = str_c("r = ", cor(df.plot$features, df.plot$mean) %>% round(2)),
+           x = .2, y = Inf, hjust = 0, vjust = 1, size = 8) +
+  annotate(geom = "text", 
+           label = str_c("RMSE = ", rmse(df.plot$features, df.plot$mean) %>% round(2)),
+           x = .2, y = Inf, hjust = 0, vjust = 2.5, size = 8) +
+  labs(x = "features model", y = "prediction judgment", tag = "e)") +
+  scale_x_continuous(breaks = seq(0, 8, 2), limits = c(0, 8)) +
+  scale_y_continuous(breaks = seq(0, 8, 2), limits = c(0, 9)) +
+  theme(text = element_text(size = 20), panel.grid = element_blank(), 
+        plot.tag = element_text(face = "bold"))
+
+
+# RESPONSIBILITY
+
+df.plot = df.exp12.pr_regression %>% 
+  filter(exp == 2) %>%
+  select(hsm = r_hsm, features = r_features, mean = r_mean, low = r_low, high = r_high)
+
+# hsm model
+plot.hsm_responsibility = ggplot(df.plot, aes(x = hsm, y = mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype='dashed') +
+  stat_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbar(aes(ymin = low, ymax = high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  annotate(geom = "text",
+           label = str_c("r = ", cor(df.plot$hsm, df.plot$mean) %>% round(2)), 
+           x = 0, y = Inf, hjust = 0, vjust = 1, size = 8) +
+  annotate(geom = "text", 
+           label = str_c("RMSE = ", rmse(df.plot$hsm, df.plot$mean) %>% round(2)), 
+           x = 0, y = Inf, hjust = 0, vjust = 2.5, size = 8) +
+  labs(x = "CSM", y = "responsibility judgment", tag = "c)") +
+  scale_x_continuous(breaks = seq(0, 100, 25), limits = c(0, 105)) +
+  scale_y_continuous(breaks = seq(0, 100, 25), limits = c(0, 120)) +
+  theme(panel.grid = element_blank(), plot.tag = element_text(face = "bold"))
+  annotate(geom = "text", label = "responsibility", x = 0, y = 0)
+
+# features model
+plot.features_responsibility = ggplot(df.plot, aes(x = features, y = mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype='dashed') +
+  stat_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbar(aes(ymin = low, ymax = high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  annotate(geom = "text", 
+           label = str_c("r = ", cor(df.plot$features, df.plot$mean) %>% round(2)),
+           x = 0, y = Inf, hjust = 0, vjust = 1, size = 8) +
+  annotate(geom = "text", 
+           label = str_c("RMSE = ", rmse(df.plot$features, df.plot$mean) %>% round(2)),
+           x = 0, y = Inf, hjust = 0, vjust = 2.5, size = 8) +
+  labs(x = "features model", y = "responsibility judgment", tag = "f)") +
+  scale_x_continuous(breaks = seq(0, 100, 25), limits = c(0, 105)) +
+  scale_y_continuous(breaks = seq(0, 100, 25), limits = c(0, 120)) +
+  theme(panel.grid = element_blank(), plot.tag = element_text(face = "bold"))
+
+# FIGURE
+
+col1 <- ggplot() + 
+  annotate(geom = 'text', x=-5, y=0, label="Selection", size=9, fontface = "bold" ) + 
+  theme_void()
+col2 <- ggplot() + 
+  annotate(geom = 'text', x=0, y=0, label="Prediction", size=9, fontface = "bold") + 
+  theme_void() 
+col3 <- ggplot() + 
+  annotate(geom = 'text', x=0, y=0, label="Responsibility", size=9, fontface = "bold") + 
+  theme_void()
+
+(col1 / plot.hsm_selection / plot.features_selection) + 
+  plot_layout(heights = c(0.15, 1, 1)) |
+  (col2 / plot.hsm_prediction / plot.features_prediction) + 
+  plot_layout(heights = c(0.15, 1, 1)) |
+  (col3 / plot.hsm_responsibility / plot.features_responsibility) +
+  plot_layout(heights = c(0.15, 1, 1))
+
+# plot.hsm_prediction + theme_classic()
+  
+# ggsave("../../figures/plots/exp2/exp2_plots.pdf", width = 15, height = 10)
+```
+
+### selection to responsibility
+
+```{r}
+df.plot = df.exp2.selection.long %>% 
+  group_by(participant, trial) %>% 
+  summarize(s_pred = sum(response), .groups = "drop") %>% 
+  group_by(trial) %>% 
+  summarize(s_mean = mean(s_pred),
+            s_low = smean.cl.boot(s_pred)[2],
+            s_high = smean.cl.boot(s_pred)[3]) %>% 
+  left_join(df.exp2.trials %>% 
+    select(trial, p_mean, p_low, p_high, r_mean, r_low, r_high, n_bricks),
+    by = "trial") %>% 
+  mutate(sp_mean = s_mean/n_bricks, sp_low = s_low/n_bricks, sp_high = s_high/n_bricks,
+         pp_mean = p_mean/n_bricks, pp_low = p_low/n_bricks, pp_high = p_high/n_bricks)
+
+plot.selection_prediction = ggplot(df.plot, aes(x = sp_mean, y = pp_mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  geom_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbarh(aes(xmin = sp_low, xmax = sp_high), height = 0, color='grey70') +
+  geom_errorbar(aes(ymin = pp_low, ymax = pp_high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  annotate(geom = "text",
+           label = str_c("r = ", cor(df.plot$sp_mean, df.plot$pp_mean) %>% round(2)),
+           x = 0, y = Inf, hjust = 0, vjust = 1.5, size = 8) +
+  annotate(geom = "text", 
+           label = str_c("RMSE = ", rmse(df.plot$sp_mean, df.plot$pp_mean) %>% round(2)), 
+           x = 0, y = Inf, hjust = 0, vjust = 3, size = 8) +
+  labs(x = "selection proportion", y = "prediction proportion") +
+  # coord_cartesian(ylim = c(0, NA), xlim = c(0, NA)) +
+  scale_x_continuous(breaks = seq(0, 1, .2), labels = seq(0, 1, .2),  limits = c(0, 1)) +
+  scale_y_continuous(breaks = seq(0, 1, .2), labels = seq(0, 1, .2), limits = c(0, 1)) +
+  theme(text = element_text(size = 20),
+        panel.grid = element_blank(),
+        axis.title.x = element_text(margin = margin(t = 10)),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+df.plot2 = df.exp12.pr_regression %>% 
+  filter(exp == 2) %>% 
+  mutate(across(contains("r_prediction"), ~./100))
+
+# selection vs responsibility
+plot.prediction_responsibility = ggplot(df.plot2, 
+                                        aes(x = r_prediction_mean, y = r_mean)) +
+  geom_abline(intercept = 0, slope = 100, linetype = 2) +
+  geom_smooth(method = "lm", color = "lightskyblue", fill="lightblue1") +
+  geom_errorbarh(aes(xmin = r_prediction_low, xmax = r_prediction_high), 
+                 height = 0, color="grey70") +
+  geom_errorbar(aes(ymin = r_low, ymax = r_high), width = 0, color="grey70") +
+  geom_point(size = 2, color="black") +
+  annotate(geom = "text", 
+           label = str_c("r = ", cor(df.plot2$r_mean, df.plot2$r_prediction_mean)
+                         %>% round(2)),
+           x = 0, y = Inf, hjust = 0, vjust = 1.5, size = 8) +
+  annotate(geom = "text", 
+           label = str_c("RMSE = ", 
+                         rmse(df.plot2$r_mean, df.plot2$r_prediction_mean*100) %>%
+                           round(2)), 
+           x = 0, y = Inf, hjust = 0, vjust = 3, size = 8) +
+  labs(x = "scaled prediction proportion", y = "responsibility judgment") +
+  scale_x_continuous(breaks = seq(0, 1, .2), 
+                     labels = seq(0, 1, .2), limits = c(0, 1)) +
+  scale_y_continuous(breaks = seq(0, 100, 20),
+                     labels = seq(0, 100, 20), limits = c(0, 100)) +
+  theme(text = element_text(size = 20),
+        panel.grid = element_blank(),
+        axis.title.x = element_text(margin = margin(t = 10)),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+plot.selection_prediction + plot.prediction_responsibility +
+  plot_annotation(tag_levels = "a", tag_suffix = ")") &
+  theme(plot.tag = element_text(face = 'bold'))
+
+# ggsave("../../figures/plots/exp2/exp2_selection_responsibility.pdf",width = 12,height = 6)
+
+```
+
+
+
+## Exp 3
+
+### selection examples
+
+```{r eval=F}
+# brick size: 80 x 40
+
+# Read in brick information
+json.location = "../../data/exp3/"
+stimuli.location = "../../figures/stimuli/exp3/"
+
+filenames = list.files(json.location) %>% mixedsort
+imagenames = list.files(stimuli.location) %>% mixedsort
+
+df.exp3.percentages = df.exp3.trials %>%
+  select(trial, a, b, responsibility = r_mean, prediction = p_mean) %>%
+  left_join(df.exp3.master %>% select(trial, model = any_of(fit_bestmodel))) %>%
+  left_join(df.exp123.regression %>% 
+              filter(exp == 3) %>% 
+              select(trial, features = fit123)) %>% 
+  mutate(model = model * 100, features = features * 100)
+
+for (i in 1:length(imagenames)) {
+# for (i in 1:1) {
+  tmp = rjson::fromJSON(file = paste0(json.location, filenames[i])) %>%
+    unlist() %>%
+    matrix(ncol = 4, byrow = T) %>%
+    as.data.frame(stringsAsFactors = F) %>%
+    setNames(c("index", "x", "y", "angle")) %>%
+    mutate(index = str_replace(index, "brick_", "")) %>%
+    mutate(across(.cols = everything(),
+                  .fns = ~ as.numeric(.))) %>%
+    mutate(across(c(x, y), ~ . * 100)) %>%
+    mutate(y = 600 - y) %>%
+    filter(x != -500) %>%
+    mutate(e.x_1 = x - 40,
+           e.y_1 = y + 20,
+           e.x_2 = x + 40,
+           e.y_2 = y + 20,
+           e.x_3 = x + 40,
+           e.y_3 = y - 20,
+           e.x_4 = x - 40,
+           e.y_4 = y - 20) %>%
+    mutate(prediction = df.exp3.percentages$prediction[[i]], 
+           a = df.exp3.percentages$a[[i]], 
+           b = df.exp3.percentages$b[[i]]) %>%
+    inner_join(df.exp3.info %>% filter(trial == i) %>% select(index, fall)) %>% 
+    mutate(selection = ifelse(index == b, round(prediction, 0), NA)) %>%
+    select(-prediction) %>%
+    wideToLong(within = 'edge') %>%
+    mutate(e.xt = x - e.x,
+           e.yt = y - e.y,
+           angle = -angle,
+           e.xr = e.xt * cos(angle) - e.yt * sin(angle),
+           e.yr = e.yt * cos(angle) + e.xt * sin(angle),
+           e.xrm = e.xr + x,
+           e.yrm = e.yr + y
+    ) %>%
+    arrange(index, edge)
+
+  image = png::readPNG(paste0(stimuli.location, imagenames[i]))
+  p = ggplot(tmp) +
+    annotation_custom(rasterGrob(image,
+                                 width = unit(1, "npc"),
+                                 height = unit(1, "npc")),
+                      xmin = 0, xmax = 800, ymin = 0, ymax = 600) +
+    scale_x_continuous(expand = c(0, 0), limits = c(0, 800)) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, 600)) +
+    scale_fill_gradient(low = 'black', high = 'red', limits = c(0, 100)) +
+    scale_color_manual(values = c("black", "red")) +
+    theme_void() +
+    theme(axis.ticks.length = unit(0.001, "mm"),
+          legend.position = 'none')
+    
+
+  # text on top
+  p = p +
+    geom_text(data = df.exp3.percentages %>%
+                filter(trial == i) %>%
+                mutate(model_text = paste0("CSM: ", as.character(round(model)), "%")),
+              mapping = aes(x = 580,
+                            y = 560,
+                            hjust = 1,
+                            label = model_text),
+              size = 7) +
+    geom_text(data = df.exp3.percentages %>%
+                filter(trial == i) %>%
+                mutate(feat_text = paste0("features model: ", 
+                                          as.character(round(features)), "%")),
+              mapping = aes(x = 580,
+                            y = 530,
+                            hjust = 1,
+                            label = feat_text),
+              size = 7) +
+    geom_text(data = df.exp3.percentages %>%
+                filter(trial == i) %>%
+                mutate(pred_text = paste0("responsibility: ", 
+                                          as.character(round(responsibility)))),
+              mapping = aes(x = 580,
+                            y = 500,
+                            hjust = 1,
+                            label = pred_text),
+              size = 7)
+  
+  # text with participant prediction judgments
+  df.text = tmp %>%
+    select(index, x, y, selection) %>%
+    group_by(index) %>%
+    arrange(-selection) %>%
+    filter(row_number() == 1) %>%
+    distinct()
+  # p = p +
+  #   geom_text(data = df.text %>% filter(!is.na(selection)), 
+  #             aes(x = x, y = y, label = selection), color="black", size = 7)
+    
+  
+  # draw block borders and fill
+  a = tmp %>% 
+    filter(row_number() == 1) %>% 
+    pull(a)
+  b = tmp %>% 
+    filter(row_number() == 1) %>% 
+    pull(b)
+  tmp = tmp %>% 
+    arrange(fall)
+  for (j in unique(tmp$index)) {
+    if (j == a) next
+    if (j == b) {
+      p = p + geom_polygon(data = tmp %>% filter(index == j),
+                   aes(x = e.xrm, y = e.yrm, alpha=.5),
+                   fill = "white")
+    }
+    p = p + geom_polygon(data = tmp %>% filter(index == j), 
+                         aes(x = e.xrm, y = e.yrm, color = as.factor(fall)),
+      alpha = 0.1, linetype = 1, size = 1.5)
+    
+      
+  }
+  
+  p = p +
+    geom_text(data = df.text %>% filter(!is.na(selection)), 
+              aes(x = x, y = y, label = selection), color="black", size = 7)
+  
+  p = p +
+    theme(plot.margin = margin(-5, -145, 0, -145, "pt"))
+  
+  img.name = paste0("../../figures/plots/exp3/stimuli_percentages/", i, ".pdf")
+  ggsave(img.name, width = 4, height = 6, dpi = 300)
+}
+```
+
+- create sample array
+
+```{r eval=F}
+ids = c(7, 35, 11, 4, 37, 8, 21, 31)
+labels = c("a)", "b)", "c)", "d)", "e)", "f)", "g)", "h)")
+
+for (i in 1:length(ids)) {
+  id = ids[[i]]
+  img = image_read_pdf(paste0('../../figures/plots/exp3/stimuli_percentages/',id,'.pdf'))
+  img = ggplot() + background_image(img) + theme_void() +
+    coord_fixed(ratio=59/40) + ggtitle(labels[[i]]) +
+    theme(plot.title = element_text(face = "bold", size = 20, vjust = -5, hjust = 0.06),
+          plot.margin = unit(c(0, 20, 0, 0), "pt"))
+
+  if (i == 1) {
+    combo_img = img
+  } else {
+    combo_img = combo_img + img
+  }
+}
+
+combo_img + plot_layout(ncol = 4, nrow = 2)
+
+ggsave("../../figures/plots/exp3/exp3_samples.pdf",width = 12,height = 8)
+```
+
+### responses vs models
+
+```{r}
+theme_set(theme_classic() +
+            theme(text = element_text(size = 20,
+                                      )))
+ids = c(7, 35, 11, 4, 37, 8, 21, 31)
+
+theme
+
+df.plot = df.exp3.master %>%
+  select(trial, index, r_mean, r_low, r_high, p_mean, p_low, p_high, 
+         hsm = any_of(fit_bestmodel)) %>%
+  left_join(df.exp123.regression %>% 
+              filter(exp == 3) %>% 
+              select(trial, index, features = fit123),
+            by = c("trial", "index")) %>% 
+  mutate(across(c(features, hsm, contains("r_"), contains("p_")), ~.*100))
+
+df.tmp = df.plot %>% 
+  filter(trial %in% ids) %>% 
+  arrange(ids) %>% 
+  mutate(lets = letters[1:8])
+
+# PREDICTION
+
+# hsm model
+plot.hsm_prediction = ggplot(df.plot, aes(x = hsm, y = p_mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  stat_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbar(aes(ymin = p_low, ymax = p_high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  geom_point(data=df.tmp, aes(hsm, p_mean), color="red", size=3) +
+  geom_text_repel(data = df.tmp, aes(label = lets), color="red", size=5) +
+  # geom_text_repel(aes(label = trial)) +
+  annotate(geom = "text",
+           label = str_c("r = ", cor(df.plot$hsm, df.plot$p_mean) %>% round(2)),
+           x = .2, y = Inf, hjust = 0, vjust = 1, size = 8) +
+  annotate(geom = "text",
+           label = str_c("RMSE = ", rmse(df.plot$hsm, df.plot$p_mean) %>% round(2)),
+           x = .2, y = Inf, hjust = 0, vjust = 2.5, size = 8) +
+  labs(x = "CSM", y = "prediction judgment (%)", tag = "a)") +
+  scale_x_continuous(breaks = seq(0, 100, 20), limits = c(0, 100)) +
+  scale_y_continuous(breaks = seq(0, 100, 20), limits = c(0, 120)) +
+  theme(panel.grid = element_blank(), plot.tag = element_text(face = "bold"))
+
+# features model
+plot.features_prediction = ggplot(df.plot, aes(x = features, y = p_mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  stat_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbar(aes(ymin = p_low, ymax = p_high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  geom_point(data=df.tmp, aes(features, p_mean), color="red", size=3) +
+  geom_text_repel(data = df.tmp, aes(label = lets), color="red", size=5) +
+  annotate(geom = "text",
+           label = str_c("r = ", cor(df.plot$features, df.plot$p_mean) %>% round(2)), 
+           x = .2, y = Inf, hjust = 0, vjust = 1.5, size = 8) +
+  annotate(geom = "text",
+           label = str_c("RMSE = ", rmse(df.plot$features, df.plot$p_mean) %>% round(2)),
+           x = .2, y = Inf, hjust = 0, vjust = 3, size = 8) +
+  labs(x = "features model", y = "prediction judgment (%)", tag = "c)") +
+  scale_x_continuous(breaks = seq(0, 100, 20), limits = c(0, 100)) +
+  scale_y_continuous(breaks = seq(0, 100, 20), limits = c(0, 120)) +
+  theme(panel.grid = element_blank(), plot.tag = element_text(face = "bold"))
+
+# RESPONSIBILITY
+
+# hsm model
+plot.hsm_responsibility = ggplot(df.plot, aes(x = hsm, y = r_mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  stat_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbar(aes(ymin = r_low, ymax = r_high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  annotate(geom = "text",
+           label = str_c("r = ", cor(df.plot$hsm, df.plot$r_mean) %>% round(2)), 
+           x = .2, y = Inf, hjust = 0, vjust = 1, size = 8) +
+  annotate(geom = "text",
+           label = str_c("RMSE = ", rmse(df.plot$hsm, df.plot$r_mean) %>% round(2)), 
+           x = .2, y = Inf, hjust = 0, vjust = 2.5, size = 8) +
+  labs(x = "CSM", y = "responsibility judgment", tag = "b)") +
+  scale_x_continuous(breaks = seq(0, 100, 20), limits = c(0, 100)) +
+  scale_y_continuous(breaks = seq(0, 100, 20), limits = c(0, 110)) +
+  theme(panel.grid = element_blank(), plot.tag = element_text(face = "bold"))
+
+# features model
+plot.features_responsibility = ggplot(df.plot, aes(x = features, y = r_mean)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  stat_smooth(method = "lm", color = "lightskyblue", fill='lightblue1') +
+  geom_errorbar(aes(ymin = r_low, ymax = r_high), width = 0, color='grey70') +
+  geom_point(size = 2, color='black') +
+  annotate(geom = "text", 
+           label = str_c("r = ", cor(df.plot$features, df.plot$r_mean) %>% round(2)), 
+           x = .2, y = Inf, hjust = 0, vjust = 1.5, size = 8) +
+  annotate(geom = "text", 
+           label = str_c("RMSE = ", rmse(df.plot$features, df.plot$r_mean) %>% round(2)),
+           x = .2, y = Inf, hjust = 0, vjust = 3, size = 8) +
+  labs(x = "features model", y = "responsibility judgment", tag = "d)") +
+  scale_x_continuous(breaks = seq(0, 100, 20), limits = c(0, 100)) +
+  scale_y_continuous(breaks = seq(0, 100, 20), limits = c(0, 110)) +
+  theme(panel.grid = element_blank(), plot.tag = element_text(face = "bold"))
+
+col1 <- ggplot() +
+  annotate(geom = 'text', x=-5, y=0, label="Prediction", size=9, fontface = "bold" ) +
+  theme_void()
+col2 <- ggplot() +
+  annotate(geom = 'text', x=0, y=0, label="Responsibility", size=9, fontface = "bold") + 
+  theme_void() 
+
+(col1 / plot.hsm_prediction / plot.features_prediction) + 
+  plot_layout(heights = c(0.15, 1, 1)) |
+  (col2 / plot.hsm_responsibility / plot.features_responsibility) + 
+  plot_layout(heights = c(0.15, 1, 1))
+
+# ggsave("../../figures/plots/exp3/exp3_plots.pdf", width = 10, height = 10)
+```
+
+

@@ -1,0 +1,19 @@
+{
+  "name": "tower-simulations",
+  "version": "1.0.0",
+  "description": "## General Purpose These experiments test general human perception of structural stability. Participants judge the stability of an arrangement of bricks in an interface by imagining a scenario where a particular brick were absent.",
+  "main": "brick_world.js",
+  "dependencies": {
+    "box2dweb": "^2.1.0-b",
+    "http-server": "^14.1.1",
+    "jsonfile": "^2.4.0",
+    "recordrtc-nodejs": "^1.0.6",
+    "seedrandom": "^3.0.5"
+  },
+  "private": true,
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}

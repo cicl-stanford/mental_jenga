@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<head>
+    <link rel='stylesheet' href='style_interface.css'>
+    <script src="js/jquery-1.10.2.js"></script>
+    <link href="https://fonts.googleapis.com/css?family=Lato" rel="stylesheet">
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      <script id="MathJax-script" async
+              src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+      </script>
+    <script src="js/interface.js"></script>
+    
+</head>
+
+<body>
+    <h1>counterfactual simulation model</h1>
+    <div id="game">
+        <iframe src="physics_wrapper.html" width=800 height=600 id="game-frame"></iframe>
+    </div>
+    <i class='small'>Across our experiments, the best-performing model had \( \beta_p = 2, \beta_i = 5, \beta_d = 4 \).</i>
+    <table class='options'>
+        <tr>
+            <td>experiment</td>
+            <td>
+                <div class='exp-buttons experiment'>
+                    <div class='exp-button' id='exp1'>1</div>
+                    <div class='exp-button' id='exp2'>2</div>
+                    <div class='exp-button' id='exp3'>3</div>
+                </div>
+            </td>
+        </tr>
+
+        <tr>
+            <td style='width:300px'>trial no.</td>
+            <td style='width:350px'>
+                <input class='exp' style='display: inline' onblur="this.value = minmax(this.value, 1, 42)" id="trial-num" placeholder="1" value="1" min="1" max="42" type="number">
+                <div class='exp' style='display: inline; color:#999; font-size:14pt'> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[choose 1 - 42]</div>
+            </td>
+        </tr>
+
+        <tr>
+            <td>perceptual uncertainty \( (\beta_p) \)</td>
+            <td>
+                <input type="range" id="perceptual-level" value=2 max=10 step=1> <span id='perceptual-num'>2</span>
+            </div>
+            </td>
+        </tr>
+
+        <tr>
+            <td>intervention uncertainty \( (\beta_i) \)</td>
+            <td>
+                <input type="range" id="intervention-level" value=5 max=10 step=1> <span id='intervention-num'>5</span>
+            </td>
+        </tr>
+
+        <tr>
+            <td>dynamic uncertainty \( (\beta_d) \)</td>
+            <td>
+                <input type="range" id="dynamics-level" value=4 max=10 step=1> <span id='dynamics-num'>4</span>
+            </td>
+        </tr>
+        
+    </table>
+    <br>
+    <div class='exp-buttons run'>
+        <div class='exp-button' id='load'>load scene</div>
+        <div class='exp-button' id='load-remove'>load scene + remove black block</div>
+    </div>
+</body>
+</html>
+
+
