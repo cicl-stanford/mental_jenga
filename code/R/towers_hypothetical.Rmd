@@ -1339,7 +1339,7 @@ var_regression = df.tmp.vars12 %>%
 
 ## Plotting
 
-```{r}
+```{r, fig.height = 2.5, fig.width = 6}
 plot.exp1.vars = ggplot(df.tmp.vars1, aes(sim, human)) +
   geom_point(size = 3, color='black', alpha=.8) +
   geom_abline(aes(intercept = 0, slope = 1, color='#00A9FF'), linetype='dashed', size=1) +
@@ -1543,7 +1543,7 @@ df.plot2 = df.plot
 ```
 
 
-```{r}
+```{r, fig.height = 5, fig.width = 5}
 
 (plot.exp1.errors_hsm + plot.exp2.errors_hsm) / 
   (plot.exp1.errors_feat + plot.exp2.errors_feat)
@@ -1610,7 +1610,7 @@ bind_rows(df.r_model, df.r_features, df.r_features_all)
 
 # Noise parameters
 
-```{r}
+```{r, fig.height = 1.75, fig.width = 7}
 df.tmp = df.exp123.bestmodels %>% 
   separate(modelname, c("hsm", "params"), sep="_") %>% 
   separate(params, c("perceptual", "intervention", "dynamics")) %>% 
@@ -2504,7 +2504,7 @@ ggsave("../../figures/plots/exp1/exp1_samples.pdf", width = 10,height = 8)
 
 ### responses vs models
 
-```{r}
+```{r, fig.height = 5, fig.width = 7.5}
 # SELECTION
 
 df.plot = df.exp1.master %>%
@@ -2676,7 +2676,7 @@ col3 <- ggplot() + annotate(geom = 'text', x=0, y=0, label="Responsibility",
 
 ### selection to responsibility
 
-```{r}
+```{r, fig.height = 3, fig.width = 6}
 # selection vs prediction
 df.plot = df.exp1.selection.long %>% 
   group_by(participant, trial) %>% 
@@ -3049,7 +3049,7 @@ ggsave("../../figures/plots/exp2/exp2_samples.pdf",width = 10,height = 8)
 
 ### responses vs models
 
-```{r}
+```{r, fig.height = 5, fig.width = 7.5}
 # SELECTION
 df.plot = df.exp2.master %>%
   select(trial, index, response, hsm = any_of(fit_bestmodel)) %>% 
@@ -3222,7 +3222,7 @@ col3 <- ggplot() +
 
 ### selection to responsibility
 
-```{r}
+```{r, fig.height = 3, fig.width = 6}
 df.plot = df.exp2.selection.long %>% 
   group_by(participant, trial) %>% 
   summarize(s_pred = sum(response), .groups = "drop") %>% 
@@ -3249,7 +3249,6 @@ plot.selection_prediction = ggplot(df.plot, aes(x = sp_mean, y = pp_mean)) +
            label = str_c("RMSE = ", rmse(df.plot$sp_mean, df.plot$pp_mean) %>% round(2)), 
            x = 0, y = Inf, hjust = 0, vjust = 3, size = 8) +
   labs(x = "selection proportion", y = "prediction proportion") +
-  # coord_cartesian(ylim = c(0, NA), xlim = c(0, NA)) +
   scale_x_continuous(breaks = seq(0, 1, .2), labels = seq(0, 1, .2),  limits = c(0, 1)) +
   scale_y_continuous(breaks = seq(0, 1, .2), labels = seq(0, 1, .2), limits = c(0, 1)) +
   theme(text = element_text(size = 20),
@@ -3478,7 +3477,7 @@ ggsave("../../figures/plots/exp3/exp3_samples.pdf",width = 12,height = 8)
 
 ### responses vs models
 
-```{r}
+```{r, fig.height = 5, fig.width = 5}
 theme_set(theme_classic() +
             theme(text = element_text(size = 20,
                                       )))
