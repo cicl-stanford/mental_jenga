@@ -6,6 +6,7 @@ output:
   bookdown::html_document2:
     toc: true
     toc_depth: 4
+    toc_float: true
     theme: cosmo
     highlight: tango
 ---
@@ -19,7 +20,6 @@ library("magick")
 library("tidyjson")
 library("png")
 library("RSQLite")
-library("tidyverse")
 library("patchwork")
 library("corrr")
 library("ggrepel")
@@ -31,6 +31,7 @@ library("xtable")
 library("rjson")
 library("transport")
 library("pdftools")
+library("tidyverse")
 ```
 
 ```{r set-theme}
