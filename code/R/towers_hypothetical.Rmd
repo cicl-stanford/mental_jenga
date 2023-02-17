@@ -1340,7 +1340,7 @@ var_regression = df.tmp.vars12 %>%
 
 ## Plotting
 
-```{r}
+```{r, out.height = 5, out.width = 12}
 plot.exp1.vars = ggplot(df.tmp.vars1, aes(sim, human)) +
   geom_point(size = 3, color='black', alpha=.8) +
   geom_abline(aes(intercept = 0, slope = 1, color='#00A9FF'), linetype='dashed', size=1) +
@@ -1405,8 +1405,6 @@ plot.exp12.vars = ggplot(df.tmp.vars12, aes(sim, human)) +
   theme(plot.title = element_text(face="bold"))
 
 plot.exp1.vars | plot.exp2.vars
-
-# plot.exp12.vars
 
 # ggsave("../../figures/plots/variances.pdf", width = 12, height = 5)
 ```
@@ -1544,7 +1542,7 @@ df.plot2 = df.plot
 ```
 
 
-```{r}
+```{r, fig.height = 10, fig.width = 10}
 
 (plot.exp1.errors_hsm + plot.exp2.errors_hsm) / 
   (plot.exp1.errors_feat + plot.exp2.errors_feat)
@@ -1611,7 +1609,7 @@ bind_rows(df.r_model, df.r_features, df.r_features_all)
 
 # Noise parameters
 
-```{r}
+```{r fig.height = 3.5, fig.width = 14}
 df.tmp = df.exp123.bestmodels %>% 
   separate(modelname, c("hsm", "params"), sep="_") %>% 
   separate(params, c("perceptual", "intervention", "dynamics")) %>% 
@@ -2328,7 +2326,7 @@ for (i in 1:length(ids)) {
 row +
   plot_annotation(tag_levels = 'a', tag_suffix = ")")
   
-ggsave("../../figures/plots/exp1/exp1_stimuli.pdf", width = 9.5,height = 2)
+# ggsave("../../figures/plots/exp1/exp1_stimuli.pdf", width = 9.5,height = 2)
 ```
 
 ### selection examples
@@ -2499,13 +2497,13 @@ for (i in 1:length(ids)) {
 
 combo_img + plot_layout(widths = c(0.05, 1, 1, 1, 1, 1))
 
-ggsave("../../figures/plots/exp1/exp1_samples.pdf", width = 10,height = 8)
+# ggsave("../../figures/plots/exp1/exp1_samples.pdf", width = 10,height = 8)
 ```
 
 
 ### responses vs models
 
-```{r}
+```{r, fig.height = 10, fig.width = 15}
 # SELECTION
 
 df.plot = df.exp1.master %>%
@@ -2677,7 +2675,7 @@ col3 <- ggplot() + annotate(geom = 'text', x=0, y=0, label="Responsibility",
 
 ### selection to responsibility
 
-```{r}
+```{r, fig.height = 6, fig.width = 12}
 # selection vs prediction
 df.plot = df.exp1.selection.long %>% 
   group_by(participant, trial) %>% 
@@ -2877,7 +2875,7 @@ for (i in 1:length(ids)) {
 
 rows
 
-ggsave("../../figures/plots/exp2/exp2_stimuli.pdf", width = 9.5,height = 4)
+# ggsave("../../figures/plots/exp2/exp2_stimuli.pdf", width = 9.5,height = 4)
 
 ```
 
@@ -3045,12 +3043,12 @@ for (i in 1:length(ids)) {
 
 combo_img + plot_layout(widths = c(0.05, 1, 1, 1, 1, 1))
 
-ggsave("../../figures/plots/exp2/exp2_samples.pdf",width = 10,height = 8)
+# ggsave("../../figures/plots/exp2/exp2_samples.pdf",width = 10,height = 8)
 ```
 
 ### responses vs models
 
-```{r}
+```{r, fig.height = 10, fig.width = 15}
 # SELECTION
 df.plot = df.exp2.master %>%
   select(trial, index, response, hsm = any_of(fit_bestmodel)) %>% 
@@ -3223,7 +3221,7 @@ col3 <- ggplot() +
 
 ### selection to responsibility
 
-```{r}
+```{r, fig.height = 6, fig.width = 12}
 df.plot = df.exp2.selection.long %>% 
   group_by(participant, trial) %>% 
   summarize(s_pred = sum(response), .groups = "drop") %>% 
@@ -3250,7 +3248,6 @@ plot.selection_prediction = ggplot(df.plot, aes(x = sp_mean, y = pp_mean)) +
            label = str_c("RMSE = ", rmse(df.plot$sp_mean, df.plot$pp_mean) %>% round(2)), 
            x = 0, y = Inf, hjust = 0, vjust = 3, size = 8) +
   labs(x = "selection proportion", y = "prediction proportion") +
-  # coord_cartesian(ylim = c(0, NA), xlim = c(0, NA)) +
   scale_x_continuous(breaks = seq(0, 1, .2), labels = seq(0, 1, .2),  limits = c(0, 1)) +
   scale_y_continuous(breaks = seq(0, 1, .2), labels = seq(0, 1, .2), limits = c(0, 1)) +
   theme(text = element_text(size = 20),
@@ -3479,13 +3476,8 @@ ggsave("../../figures/plots/exp3/exp3_samples.pdf",width = 12,height = 8)
 
 ### responses vs models
 
-```{r}
-theme_set(theme_classic() +
-            theme(text = element_text(size = 20,
-                                      )))
+```{r, warn=F, fig.height = 10, fig.width = 10}
 ids = c(7, 35, 11, 4, 37, 8, 21, 31)
-
-theme
 
 df.plot = df.exp3.master %>%
   select(trial, index, r_mean, r_low, r_high, p_mean, p_low, p_high, 
